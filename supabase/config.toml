@@ -1,0 +1,25 @@
+# Supabase local config. Minimal — enough for `supabase start` / `db reset`.
+project_id = "pm-dashboard"
+
+[db]
+port = 54322
+major_version = 15
+
+[auth]
+enabled = true
+# Domain restriction (Spec 01 §2.1 / Spec 03 §3) is enforced two ways:
+#   1. The Google OAuth consent screen (configure in the Supabase dashboard /
+#      Google Cloud console to restrict to the Amzur Workspace).
+#   2. The on_auth_user_created trigger (migration 0002) as a DB backstop.
+site_url = "http://localhost:3000"
+
+[auth.external.google]
+enabled = true
+# Set these via environment / dashboard secrets — do NOT commit real values.
+client_id = "env(SUPABASE_AUTH_GOOGLE_CLIENT_ID)"
+secret    = "env(SUPABASE_AUTH_GOOGLE_SECRET)"
+
+[api]
+enabled = true
+schemas = ["public"]
+extra_search_path = ["public"]
