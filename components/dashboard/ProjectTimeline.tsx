@@ -69,7 +69,7 @@ export function ProjectTimeline({
                     return (
                       <td key={w} className="h-8 w-10 border-l border-gray-50"
                         title={a !== undefined ? `${p.project_name} · week of ${w}: ${round1(a)}h` : undefined}
-                        style={inRange ? { backgroundColor: `rgba(37, 99, 235, ${intensity})` } : undefined}
+                        style={inRange ? { backgroundColor: `rgba(124, 58, 237, ${intensity})` } : undefined}
                       />
                     );
                   })}

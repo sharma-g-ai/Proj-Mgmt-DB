@@ -156,10 +156,6 @@ export function ProjectForm({
         </Link>
       </div>
 
-      <style>{`
-        .input { width:100%; border:1px solid #d1d5db; border-radius:0.5rem; padding:0.5rem 0.625rem; font-size:0.875rem; }
-        .input:focus { outline:2px solid #111827; outline-offset:-1px; }
-      `}</style>
     </form>
   );
 }

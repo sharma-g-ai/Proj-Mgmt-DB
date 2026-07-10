@@ -74,7 +74,7 @@ export default async function DashboardPage({
         {projects.length === 0 ? (
           <div className="rounded-xl border border-dashed border-gray-300 bg-white px-4 py-16 text-center">
             <p className="text-gray-600">No projects visible yet.</p>
-            <Link href="/projects/new" className="mt-3 inline-block rounded-md bg-gray-900 px-3 py-2 text-sm font-medium text-white hover:bg-gray-800">
+            <Link href="/projects/new" className="mt-3 inline-block rounded-md bg-brand-600 px-3 py-2 text-sm font-medium text-white hover:bg-brand-700">
               Create your first project
             </Link>
           </div>

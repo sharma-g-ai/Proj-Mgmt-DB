@@ -83,10 +83,6 @@ export function UserForm({
         </Link>
       </div>
 
-      <style>{`
-        .input { width:100%; border:1px solid #d1d5db; border-radius:0.5rem; padding:0.5rem 0.625rem; font-size:0.875rem; }
-        .input:focus { outline:2px solid #111827; outline-offset:-1px; }
-      `}</style>
     </form>
   );
 }
@@ -116,7 +112,7 @@ function SubmitButton({ label, disabled }: { label: string; disabled?: boolean }
     <button
       type="submit"
       disabled={pending || disabled}
-      className="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50"
+      className="rounded-md bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-50"
     >
       {pending ? "Saving…" : label}
     </button>

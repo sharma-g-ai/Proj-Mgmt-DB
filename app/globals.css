@@ -9,3 +9,27 @@
 body {
   @apply bg-gray-50 text-gray-900 antialiased;
 }
+
+@layer base {
+  /* Consistent, accessible brand focus ring for interactive controls. */
+  a:focus-visible,
+  button:focus-visible,
+  input:focus-visible,
+  select:focus-visible,
+  textarea:focus-visible,
+  [tabindex]:focus-visible {
+    outline: 2px solid #8b5cf6; /* brand-500 */
+    outline-offset: 2px;
+    border-radius: 0.25rem;
+  }
+}
+
+@layer components {
+  /* Shared text input (was duplicated as local <style jsx> in the forms). */
+  .input {
+    @apply w-full rounded-lg border border-gray-300 px-2.5 py-2 text-sm;
+  }
+  .input:focus {
+    @apply border-brand-500 outline-none ring-2 ring-brand-500/40;
+  }
+}

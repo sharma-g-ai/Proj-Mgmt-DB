@@ -46,7 +46,7 @@ export default async function UsersPage({ searchParams }: { searchParams: Search
   return (
     <div className="min-h-screen">
       <AppHeader profile={profile} />
-      <main className="mx-auto max-w-5xl px-4 py-8">
+      <main className="mx-auto max-w-6xl px-4 py-8">
         <div className="mb-6 flex items-center justify-between">
           <div>
             <h1 className="text-xl font-semibold tracking-tight">Users</h1>

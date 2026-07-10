@@ -123,7 +123,7 @@ export function ReportWorkbook({
 
         <div className="flex flex-wrap items-center gap-2">
           <button onClick={() => download("xlsx")} disabled={busy !== null}
-            className="rounded-md bg-gray-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50">
+            className="rounded-md bg-brand-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-50">
             {busy === "xlsx" ? "Generating…" : "Download XLSX"}
           </button>
           <button onClick={() => download("pdf")} disabled={busy !== null}

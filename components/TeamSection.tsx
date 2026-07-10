@@ -85,7 +85,7 @@ export function TeamSection({
             <input type="number" name="allocated_hours" required min="0.5" step="0.5"
               className="w-28 rounded-md border border-gray-300 px-2 py-1.5 text-sm" />
           </label>
-          <button className="rounded-md bg-gray-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-gray-800">
+          <button className="rounded-md bg-brand-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-700">
             + Add
           </button>
           {state?.error && <p className="w-full text-sm text-red-600">{state.error}</p>}

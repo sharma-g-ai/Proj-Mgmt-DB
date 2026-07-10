@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "PM Dashboard",
+  title: "Amzur · PM Dashboard",
   description: "Amzur project management dashboard",
 };
 

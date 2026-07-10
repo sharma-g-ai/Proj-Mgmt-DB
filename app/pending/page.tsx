@@ -23,7 +23,8 @@ export default async function Pending() {
 
   return (
     <main className="flex min-h-screen items-center justify-center px-4">
-      <div className="w-full max-w-md rounded-2xl border border-gray-200 bg-white p-8 text-center shadow-sm">
+      <div className="w-full max-w-md rounded-2xl border border-gray-200 border-t-4 border-t-brand-600 bg-white p-8 text-center shadow-sm">
+        <img src="/amzur-logo.jpg" alt="Amzur" className="mx-auto mb-4 h-9 w-auto" />
         <h1 className="text-xl font-semibold tracking-tight">
           Your account is awaiting activation
         </h1>

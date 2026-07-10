@@ -75,7 +75,7 @@ export function HoursSection({
             <input type="number" name="hours_logged" required min="0.1" step="0.1"
               className="w-28 rounded-md border border-gray-300 px-2 py-1.5 text-sm" />
           </label>
-          <button className="rounded-md bg-gray-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-gray-800">
+          <button className="rounded-md bg-brand-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-700">
             + Log Hours
           </button>
           {state?.error && <p className="w-full text-sm text-red-600">{state.error}</p>}

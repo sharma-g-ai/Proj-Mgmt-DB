@@ -37,7 +37,7 @@ export default async function ProjectDetailPage({ params }: { params: { id: stri
     <div className="min-h-screen">
       <AppHeader profile={profile} />
 
-      <main className="mx-auto max-w-5xl space-y-6 px-4 py-8">
+      <main className="mx-auto max-w-6xl space-y-6 px-4 py-8">
         {/* Breadcrumb + title + actions */}
         <div>
           <div className="mb-2 flex items-center gap-2 text-sm text-gray-500">
