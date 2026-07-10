@@ -2,8 +2,21 @@ import ExcelJS from "exceljs";
 import { round1 } from "@/lib/format";
 import type { ReportData } from "@/lib/report/types";
 
-// Spec 08 §3.2 — three sheets of raw, pivot-ready numbers (no charts).
-export async function buildXlsx(data: ReportData): Promise<Buffer> {
+type ColSpec = { header: string; key: string; width: number };
+type VisibleColumns = { projects?: string[]; team?: string[]; hours?: string[] };
+
+// Keep only the columns whose key is in `keys` (preserving definition order). When
+// `keys` is undefined, keep all — so the picker is purely additive.
+function pick(cols: ColSpec[], keys?: string[]): ColSpec[] {
+  if (!keys) return cols;
+  const set = new Set(keys);
+  const kept = cols.filter((c) => set.has(c.key));
+  return kept.length > 0 ? kept : cols; // never emit a header-less sheet
+}
+
+// Spec 08 §3.2 — three sheets of raw, pivot-ready numbers (no charts). `visible`
+// (from the on-screen column picker) narrows each sheet to the shown columns.
+export async function buildXlsx(data: ReportData, visible?: VisibleColumns): Promise<Buffer> {
   const wb = new ExcelJS.Workbook();
   wb.creator = "PM Dashboard";
   wb.created = data.generatedAt;
@@ -11,27 +24,30 @@ export async function buildXlsx(data: ReportData): Promise<Buffer> {
   // Sheet 1 — Portfolio Summary (one row per project × resource; project columns
   // repeat). Column order matches the on-screen Projects tab.
   const s1 = wb.addWorksheet("Portfolio Summary");
-  s1.columns = [
-    { header: "Project", key: "project_name", width: 24 },
-    { header: "Resource", key: "person", width: 18 },
-    { header: "Man-hours", key: "allocated_hours", width: 12 },
-    { header: "Stakeholder", key: "stakeholder", width: 14 },
-    { header: "Type", key: "project_type_label", width: 12 },
-    { header: "Priority", key: "priority", width: 10 },
-    { header: "Status", key: "status_label", width: 14 },
-    { header: "Manager/Lead", key: "manager_lead_name", width: 18 },
-    { header: "Start Date", key: "start_date", width: 12 },
-    { header: "Planned End", key: "planned_end_date", width: 12 },
-    { header: "Estimated Hrs", key: "estimated_effort_hrs", width: 13 },
-    { header: "Logged Hrs", key: "logged_hours", width: 11 },
-    { header: "% Completion", key: "pct_completion", width: 13 },
-    { header: "Pending Hrs", key: "pending_hours", width: 12 },
-    { header: "Pending %", key: "pending_pct", width: 11 },
-    { header: "Planned Hrs", key: "planned_hours", width: 12 },
-    { header: "Allocation %", key: "allocation_pct", width: 12 },
-    { header: "Working Days Left", key: "working_days_remaining", width: 16 },
-    { header: "Archived", key: "is_archived", width: 10 },
-  ];
+  s1.columns = pick(
+    [
+      { header: "Project", key: "project_name", width: 24 },
+      { header: "Resource", key: "person", width: 18 },
+      { header: "Man-hours", key: "allocated_hours", width: 12 },
+      { header: "Stakeholder", key: "stakeholder", width: 14 },
+      { header: "Type", key: "project_type_label", width: 12 },
+      { header: "Priority", key: "priority", width: 10 },
+      { header: "Status", key: "status_label", width: 14 },
+      { header: "Manager/Lead", key: "manager_lead_name", width: 18 },
+      { header: "Start Date", key: "start_date", width: 12 },
+      { header: "Planned End", key: "planned_end_date", width: 12 },
+      { header: "Estimated Hrs", key: "estimated_effort_hrs", width: 13 },
+      { header: "Logged Hrs", key: "logged_hours", width: 11 },
+      { header: "% Completion", key: "pct_completion", width: 13 },
+      { header: "Pending Hrs", key: "pending_hours", width: 12 },
+      { header: "Pending %", key: "pending_pct", width: 11 },
+      { header: "Planned Hrs", key: "planned_hours", width: 12 },
+      { header: "Allocation %", key: "allocation_pct", width: 12 },
+      { header: "Working Days Left", key: "working_days_remaining", width: 16 },
+      { header: "Archived", key: "is_archived", width: 10 },
+    ],
+    visible?.projects
+  );
   for (const p of data.projectRows) {
     s1.addRow({
       ...p,
@@ -48,24 +64,30 @@ export async function buildXlsx(data: ReportData): Promise<Buffer> {
 
   // Sheet 2 — Team Allocation Detail (one row per ProjectTeamMember).
   const s2 = wb.addWorksheet("Team Allocation Detail");
-  s2.columns = [
-    { header: "Project", key: "project_name", width: 24 },
-    { header: "Person", key: "person", width: 20 },
-    { header: "Start", key: "start_date", width: 12 },
-    { header: "End", key: "end_date", width: 12 },
-    { header: "Man-hours", key: "allocated_hours", width: 13 },
-  ];
+  s2.columns = pick(
+    [
+      { header: "Project", key: "project_name", width: 24 },
+      { header: "Person", key: "person", width: 20 },
+      { header: "Start", key: "start_date", width: 12 },
+      { header: "End", key: "end_date", width: 12 },
+      { header: "Man-hours", key: "allocated_hours", width: 13 },
+    ],
+    visible?.team
+  );
   for (const t of data.team) s2.addRow(t);
 
   // Sheet 3 — Hours Log Detail (one row per HoursLogEntry).
   const s3 = wb.addWorksheet("Hours Log Detail");
-  s3.columns = [
-    { header: "Project", key: "project_name", width: 24 },
-    { header: "Person", key: "person", width: 20 },
-    { header: "Date", key: "entry_date", width: 12 },
-    { header: "Hours", key: "hours_logged", width: 10 },
-    { header: "Source", key: "source", width: 10 },
-  ];
+  s3.columns = pick(
+    [
+      { header: "Project", key: "project_name", width: 24 },
+      { header: "Person", key: "person", width: 20 },
+      { header: "Date", key: "entry_date", width: 12 },
+      { header: "Hours", key: "hours_logged", width: 10 },
+      { header: "Source", key: "source", width: 10 },
+    ],
+    visible?.hours
+  );
   for (const h of data.hours) s3.addRow(h);
 
   for (const ws of [s1, s2, s3]) {

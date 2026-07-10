@@ -79,8 +79,8 @@ export function AllocationHeatmap({
               <tr className="bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500">
                 <th className="sticky left-0 z-10 bg-gray-50 px-3 py-2 font-medium">Person</th>
                 {projects.map((p) => (
-                  <th key={p.project_id} className="px-3 py-2 text-right font-medium">
-                    <span className="block max-w-[7rem] truncate" title={p.project_name}>{p.project_name}</span>
+                  <th key={p.project_id} className="px-3 py-2 text-center font-medium">
+                    <span className="mx-auto block max-w-[7rem] truncate" title={p.project_name}>{p.project_name}</span>
                   </th>
                 ))}
                 <th className="px-3 py-2 text-right font-medium">Load (all)</th>
@@ -93,7 +93,7 @@ export function AllocationHeatmap({
                   {projects.map((p) => {
                     const v = cell.get(`${r.user_id}|${p.project_id}`);
                     return (
-                      <td key={p.project_id} className="px-3 py-2 text-right text-gray-600">
+                      <td key={p.project_id} className="px-3 py-2 text-center text-gray-600 tabular-nums">
                         {v ? round1(v) : ""}
                       </td>
                     );

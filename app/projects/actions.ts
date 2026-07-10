@@ -231,6 +231,7 @@ export async function logHours(
   if (error) return { error: friendlyError(error.message) };
 
   revalidatePath(`/projects/${projectId}`);
+  revalidatePath("/projects"); // list shows % Complete, which logged hours changes
   return { ok: true };
 }
 

@@ -42,6 +42,20 @@ export function ReportWorkbook({
     resolvedHours.current = r;
   }, []);
 
+  // Visible column keys per tab (drives which columns the export includes).
+  const visibleProjects = useRef<string[]>(projectColumns.map((c) => c.key));
+  const visibleTeam = useRef<string[]>(teamColumns.map((c) => c.key));
+  const visibleHours = useRef<string[]>(hoursColumns.map((c) => c.key));
+  const onProjectsCols = useCallback((k: string[]) => {
+    visibleProjects.current = k;
+  }, []);
+  const onTeamCols = useCallback((k: string[]) => {
+    visibleTeam.current = k;
+  }, []);
+  const onHoursCols = useCallback((k: string[]) => {
+    visibleHours.current = k;
+  }, []);
+
   async function fetchAndSave(format: "pdf" | "xlsx") {
     const res = await fetch("/api/report", {
       method: "POST",
@@ -52,6 +66,11 @@ export function ReportWorkbook({
         projectRows: resolvedProjects.current,
         team: resolvedTeam.current,
         hours: resolvedHours.current,
+        visibleColumns: {
+          projects: visibleProjects.current,
+          team: visibleTeam.current,
+          hours: visibleHours.current,
+        },
       }),
     });
     if (!res.ok) throw new Error(`Report failed (${res.status})`);
@@ -132,6 +151,7 @@ export function ReportWorkbook({
           columns={projectColumns}
           initialFilters={{ is_archived: "No" }}
           onResolved={onProjects}
+          onVisibleColumnsChange={onProjectsCols}
           groupBy={(r) => r.project_id}
           emptyMessage="No projects match."
         />
@@ -141,6 +161,7 @@ export function ReportWorkbook({
           rows={team}
           columns={teamColumns}
           onResolved={onTeam}
+          onVisibleColumnsChange={onTeamCols}
           emptyMessage="No allocations match."
         />
       </div>
@@ -149,6 +170,7 @@ export function ReportWorkbook({
           rows={hours}
           columns={hoursColumns}
           onResolved={onHours}
+          onVisibleColumnsChange={onHoursCols}
           emptyMessage="No hours logged."
         />
       </div>

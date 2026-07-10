@@ -21,16 +21,18 @@ export type ColumnDef<T> = {
 
 type SortState = { key: string; dir: "asc" | "desc" } | null;
 
-// A single sortable + filterable table. Manages its own sort/filter state and
-// lifts the resolved (filtered + sorted) rows to the parent via onResolved so an
-// export can serialize exactly what's on screen. When `groupBy` is supplied and no
-// sort is active, consecutive rows sharing a group key are banded together and the
-// `group` columns are shown only on each group's first row.
+// A single sortable + filterable table. Manages its own sort/filter/column-visibility
+// state and lifts the resolved (filtered + sorted) rows and the visible column keys to
+// the parent (onResolved / onVisibleColumnsChange) so an export can reproduce exactly
+// what's on screen. When `groupBy` is supplied and no sort is active, consecutive rows
+// sharing a group key are banded together and `group` columns show only on each group's
+// first row.
 export function DataTable<T>({
   rows,
   columns,
   initialFilters,
   onResolved,
+  onVisibleColumnsChange,
   groupBy,
   emptyMessage = "No rows match.",
 }: {
@@ -38,11 +40,23 @@ export function DataTable<T>({
   columns: ColumnDef<T>[];
   initialFilters?: Record<string, string>;
   onResolved?: (rows: T[]) => void;
+  onVisibleColumnsChange?: (keys: string[]) => void;
   groupBy?: (row: T) => string;
   emptyMessage?: string;
 }) {
   const [sort, setSort] = useState<SortState>(null);
   const [filters, setFilters] = useState<Record<string, string>>(initialFilters ?? {});
+  const [hidden, setHidden] = useState<Set<string>>(new Set());
+  const [pickerOpen, setPickerOpen] = useState(false);
+
+  const visibleColumns = useMemo(
+    () => columns.filter((c) => !hidden.has(c.key)),
+    [columns, hidden]
+  );
+
+  useEffect(() => {
+    onVisibleColumnsChange?.(visibleColumns.map((c) => c.key));
+  }, [visibleColumns, onVisibleColumnsChange]);
 
   // Distinct values for select-filter columns.
   const distinct = useMemo(() => {
@@ -58,7 +72,8 @@ export function DataTable<T>({
 
   const resolved = useMemo(() => {
     let out = rows;
-    for (const col of columns) {
+    // Only visible columns' filters apply (hiding a column drops its filter).
+    for (const col of visibleColumns) {
       const f = filters[col.key];
       if (!f) continue;
       if (col.filter === "text") {
@@ -81,7 +96,7 @@ export function DataTable<T>({
       }
     }
     return out;
-  }, [rows, columns, filters, sort]);
+  }, [rows, columns, visibleColumns, filters, sort]);
 
   useEffect(() => {
     onResolved?.(resolved);
@@ -113,19 +128,71 @@ export function DataTable<T>({
     setFilters((prev) => ({ ...prev, [key]: value }));
   }
 
+  function toggleColumn(key: string) {
+    setHidden((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) {
+        next.delete(key);
+      } else {
+        // keep at least one column visible
+        if (columns.length - next.size <= 1) return prev;
+        next.add(key);
+      }
+      return next;
+    });
+  }
+
   const stickyHead = "sticky left-0 z-20 bg-gray-50";
   const stickyCell = "sticky left-0 z-10 bg-white";
 
   return (
     <div className="space-y-2">
-      <div className="text-xs text-gray-500">
-        {resolved.length} of {rows.length} row{rows.length === 1 ? "" : "s"}
+      <div className="flex items-center justify-between gap-3">
+        <div className="text-xs text-gray-500">
+          {resolved.length} of {rows.length} row{rows.length === 1 ? "" : "s"}
+          {hidden.size > 0 && ` · ${hidden.size} column${hidden.size === 1 ? "" : "s"} hidden`}
+        </div>
+        <div className="relative">
+          <button
+            type="button"
+            onClick={() => setPickerOpen((o) => !o)}
+            className="rounded-md border border-gray-300 bg-white px-2.5 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50"
+          >
+            Columns ▾
+          </button>
+          {pickerOpen && (
+            <>
+              {/* click-away backdrop */}
+              <div className="fixed inset-0 z-30" onClick={() => setPickerOpen(false)} />
+              <div className="absolute right-0 z-40 mt-1 max-h-72 w-56 overflow-auto rounded-lg border border-gray-200 bg-white p-2 shadow-lg">
+                {columns.map((col) => {
+                  const visible = !hidden.has(col.key);
+                  const isLast = visible && columns.length - hidden.size <= 1;
+                  return (
+                    <label
+                      key={col.key}
+                      className="flex items-center gap-2 rounded px-2 py-1 text-sm text-gray-700 hover:bg-gray-50"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={visible}
+                        disabled={isLast}
+                        onChange={() => toggleColumn(col.key)}
+                      />
+                      <span className="truncate">{col.label}</span>
+                    </label>
+                  );
+                })}
+              </div>
+            </>
+          )}
+        </div>
       </div>
       <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
         <table className="min-w-full text-sm">
           <thead className="bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500">
             <tr className="border-b border-gray-200">
-              {columns.map((col, i) => {
+              {visibleColumns.map((col, i) => {
                 const active = sort?.key === col.key;
                 return (
                   <th
@@ -151,7 +218,7 @@ export function DataTable<T>({
               })}
             </tr>
             <tr className="border-b border-gray-200">
-              {columns.map((col, i) => (
+              {visibleColumns.map((col, i) => (
                 <th
                   key={col.key}
                   className={`px-3 pb-2 font-normal ${i === 0 ? `${stickyHead} border-r border-gray-200` : ""}`}
@@ -185,7 +252,7 @@ export function DataTable<T>({
           <tbody className={grouping ? "" : "divide-y divide-gray-100"}>
             {rendered.length === 0 && (
               <tr>
-                <td colSpan={columns.length} className="px-3 py-10 text-center text-gray-500">
+                <td colSpan={visibleColumns.length} className="px-3 py-10 text-center text-gray-500">
                   {emptyMessage}
                 </td>
               </tr>
@@ -197,7 +264,7 @@ export function DataTable<T>({
                   grouping && groupStart && i > 0 ? "border-t border-gray-200" : ""
                 }`}
               >
-                {columns.map((col, ci) => {
+                {visibleColumns.map((col, ci) => {
                   const hide = grouping && col.group && !groupStart;
                   const isText = col.filter === "text" && col.align !== "right";
                   return (

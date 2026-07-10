@@ -34,6 +34,7 @@ export async function POST(request: Request) {
     projectRows?: ReportProjectRow[];
     team?: ReportTeamRow[];
     hours?: ReportHoursRow[];
+    visibleColumns?: { projects?: string[]; team?: string[]; hours?: string[] };
   };
 
   const format = body.format === "xlsx" ? "xlsx" : "pdf";
@@ -73,7 +74,7 @@ export async function POST(request: Request) {
   const base = `PM-Dashboard-Report-${scopeSlug}-${dateStr}`;
 
   if (format === "xlsx") {
-    const buf = await buildXlsx(data);
+    const buf = await buildXlsx(data, body.visibleColumns);
     return new NextResponse(new Uint8Array(buf), {
       headers: {
         "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
