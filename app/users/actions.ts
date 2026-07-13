@@ -20,6 +20,7 @@ async function callerIsAdmin(): Promise<boolean> {
 
 function mapUserError(message: string, code?: string): string {
   const m = message.toLowerCase();
+  if (m.includes("employee_id")) return "That Employee ID is already in use.";
   if (code === "23505" || m.includes("duplicate") || (m.includes("unique") && m.includes("email")))
     return "A user with that email already exists.";
   if (m.includes("amzur")) return "Email must be an @amzur.com address.";
@@ -41,12 +42,14 @@ export async function createUser(_prev: ActionState, form: FormData): Promise<Ac
   const role = str(form, "role");
   const capacity = Number(str(form, "weekly_capacity_hrs"));
   const is_active = form.get("is_active") === "on";
+  const employee_id = str(form, "employee_id");
+  const designation_id = str(form, "designation_id");
 
   if (!full_name) return { error: "Full Name is required." };
   if (!email) return { error: "Email is required." };
   if (!email.endsWith("@amzur.com")) return { error: "Email must be an @amzur.com address." };
   if (!capacity || capacity <= 0) return { error: "Weekly Capacity is required and must be > 0." };
-  if (is_active && !role) return { error: "Assign a role to create an active user." };
+  if (is_active && !role) return { error: "Assign an access level to create an active user." };
 
   let admin;
   try {
@@ -61,6 +64,8 @@ export async function createUser(_prev: ActionState, form: FormData): Promise<Ac
     role: role || null,
     weekly_capacity_hrs: capacity,
     is_active,
+    employee_id: employee_id || null,
+    designation_id: designation_id || null,
   });
 
   if (error) return { error: mapUserError(error.message, error.code) };
@@ -82,13 +87,18 @@ export async function updateUser(
   if (!(await callerIsAdmin())) return { error: "Admins only." };
 
   const full_name = str(form, "full_name");
+  const email = str(form, "email").toLowerCase();
   const role = str(form, "role");
   const capacity = Number(str(form, "weekly_capacity_hrs"));
   const is_active = form.get("is_active") === "on";
+  const employee_id = str(form, "employee_id");
+  const designation_id = str(form, "designation_id");
 
   if (!full_name) return { error: "Full Name is required." };
+  if (!email) return { error: "Email is required." };
+  if (!email.endsWith("@amzur.com")) return { error: "Email must be an @amzur.com address." };
   if (!capacity || capacity <= 0) return { error: "Weekly Capacity is required and must be > 0." };
-  if (is_active && !role) return { error: "Assign a role to activate this user." };
+  if (is_active && !role) return { error: "Assign an access level to activate this user." };
 
   const supabase = createClient();
 
@@ -109,11 +119,49 @@ export async function updateUser(
 
   const { error } = await supabase
     .from("users")
-    .update({ full_name, role: role || null, weekly_capacity_hrs: capacity, is_active })
+    .update({
+      full_name,
+      email,
+      role: role || null,
+      weekly_capacity_hrs: capacity,
+      is_active,
+      employee_id: employee_id || null,
+      designation_id: designation_id || null,
+    })
     .eq("user_id", userId);
 
   if (error) return { error: mapUserError(error.message, error.code) };
 
   revalidatePath("/users");
   redirect("/users");
+}
+
+// ---------------------------------------------------------------------------
+// Designation lookup management (Admin). RLS (is_admin()) authorizes the writes,
+// so the ordinary session client is enough — no service-role needed.
+// ---------------------------------------------------------------------------
+export async function createDesignation(_prev: ActionState, form: FormData): Promise<ActionState> {
+  if (!(await callerIsAdmin())) return { error: "Admins only." };
+  const label = str(form, "label");
+  if (!label) return { error: "Designation is required." };
+
+  const supabase = createClient();
+  const { error } = await supabase.from("designation_option").insert({ label });
+  if (error) {
+    const dup = error.code === "23505" || error.message.toLowerCase().includes("duplicate");
+    return { error: dup ? "That designation already exists." : error.message };
+  }
+  revalidatePath("/users/designations");
+  return { ok: true };
+}
+
+export async function setDesignationActive(optionId: string, active: boolean): Promise<void> {
+  const supabase = createClient();
+  const { error } = await supabase
+    .from("designation_option")
+    .update({ is_active: active })
+    .eq("option_id", optionId);
+  if (error) throw new Error(error.message);
+  revalidatePath("/users/designations");
+  revalidatePath("/users");
 }

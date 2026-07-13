@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useFormState, useFormStatus } from "react-dom";
 import Link from "next/link";
-import type { ActionState } from "@/lib/types";
+import type { ActionState, LookupOption } from "@/lib/types";
 
 type Initial = {
   full_name?: string;
@@ -11,20 +11,27 @@ type Initial = {
   role?: string | null;
   weekly_capacity_hrs?: number;
   is_active?: boolean;
+  employee_id?: string | null;
+  designation_id?: string | null;
 };
 
 export function UserForm({
   mode,
   action,
   initial,
+  designations,
+  variant = "user",
 }: {
   mode: "create" | "edit";
   action: (prev: ActionState, form: FormData) => Promise<ActionState>;
   initial?: Initial;
+  designations: LookupOption[];
+  variant?: "user" | "resource";
 }) {
   const [state, formAction] = useFormState(action, undefined);
   const [role, setRole] = useState(initial?.role ?? "");
   const [active, setActive] = useState(initial?.is_active ?? false);
+  const isResource = variant === "resource";
   const activateNeedsRole = active && !role;
 
   return (
@@ -38,24 +45,32 @@ export function UserForm({
       </Field>
 
       <Field label="Email" required>
-        {mode === "edit" ? (
-          <input className="input bg-gray-50 text-gray-500" value={initial?.email} disabled />
-        ) : (
-          <input name="email" type="email" required className="input" placeholder="name@amzur.com" />
-        )}
+        <input name="email" type="email" required defaultValue={initial?.email}
+          className="input" placeholder="name@amzur.com" />
       </Field>
-      {mode === "edit" && (
-        <p className="-mt-3 text-xs text-gray-400">
-          Email is the identity key and can&apos;t be changed here.
-        </p>
-      )}
 
       <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-        <Field label="Role" required={active}>
-          <select name="role" value={role} onChange={(e) => setRole(e.target.value)} className="input">
-            <option value="">— Pending (no role)</option>
-            <option value="Manager-Lead">Manager-Lead</option>
-            <option value="Admin">Admin</option>
+        {!isResource && (
+          <Field label="Access level" required={active}>
+            <select name="role" value={role} onChange={(e) => setRole(e.target.value)} className="input">
+              <option value="">— None (no access)</option>
+              <option value="Manager-Lead">Manager-Lead</option>
+              <option value="Admin">Admin</option>
+            </select>
+          </Field>
+        )}
+
+        <Field label="Employee ID" required={isResource}>
+          <input name="employee_id" required={isResource} defaultValue={initial?.employee_id ?? ""}
+            className="input" placeholder="AMZ/IND/000" />
+        </Field>
+
+        <Field label="Designation">
+          <select name="designation_id" defaultValue={initial?.designation_id ?? ""} className="input">
+            <option value="">— None</option>
+            {designations.map((d) => (
+              <option key={d.option_id} value={d.option_id}>{d.label}</option>
+            ))}
           </select>
         </Field>
 
@@ -65,24 +80,33 @@ export function UserForm({
         </Field>
       </div>
 
-      <label className="flex items-center gap-2 text-sm text-gray-700">
-        <input type="checkbox" name="is_active" checked={active} onChange={(e) => setActive(e.target.checked)} />
-        Active (can sign in and access data)
-      </label>
-      {activateNeedsRole && (
-        <p className="-mt-3 text-xs text-red-600">Assign a role to activate this user.</p>
+      {!isResource && (
+        <>
+          <label className="flex items-center gap-2 text-sm text-gray-700">
+            <input type="checkbox" name="is_active" checked={active} onChange={(e) => setActive(e.target.checked)} />
+            Active (can sign in and access data)
+          </label>
+          {activateNeedsRole && (
+            <p className="-mt-3 text-xs text-red-600">Assign an access level to activate this user.</p>
+          )}
+        </>
+      )}
+      {isResource && (
+        <p className="text-xs text-gray-500">
+          Resources are allocatable to projects but have no login. Assign access later by editing
+          the user.
+        </p>
       )}
 
       <div className="flex items-center gap-3 pt-2">
         <SubmitButton
           disabled={activateNeedsRole}
-          label={mode === "create" ? "Create User" : "Save Changes"}
+          label={mode === "create" ? (isResource ? "Add Resource" : "Create User") : "Save Changes"}
         />
         <Link href="/users" className="text-sm text-gray-500 hover:text-gray-700">
           Cancel
         </Link>
       </div>
-
     </form>
   );
 }

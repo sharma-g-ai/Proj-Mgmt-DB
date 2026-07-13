@@ -6,7 +6,8 @@ import type {
   ReportTeamRow,
   ReportHoursRow,
   ReportProjectRow,
-  FinanceRow,
+  FinancePerson,
+  FinanceAllocation,
 } from "@/lib/report/types";
 
 // Recent-weeks default for the Team Allocation sheet (Spec 08 §3.2).
@@ -34,8 +35,8 @@ export async function gatherReportData(
 
   let team: ReportTeamRow[] = [];
   let hours: ReportHoursRow[] = [];
-  // user_id → (project_name → summed allocated hours), for the Finance pivot.
-  const hoursByUser = new Map<string, Map<string, number>>();
+  // Per-assignment atoms the client pivots per month (Finance view).
+  const financeAllocations: FinanceAllocation[] = [];
 
   if (ids.length > 0) {
     let tq = supabase
@@ -64,10 +65,13 @@ export async function gatherReportData(
       allocated_hours: round1(r.allocated_hours),
     }));
     for (const r of tList) {
-      const pName = nameById.get(r.project_id) ?? "—";
-      const byProject = hoursByUser.get(r.user_id) ?? new Map<string, number>();
-      byProject.set(pName, (byProject.get(pName) ?? 0) + r.allocated_hours);
-      hoursByUser.set(r.user_id, byProject);
+      financeAllocations.push({
+        user_id: r.user_id,
+        project_name: nameById.get(r.project_id) ?? "—",
+        allocated_hours: r.allocated_hours,
+        start_date: r.start_date,
+        end_date: r.end_date,
+      });
     }
 
     const { data: hRows } = await supabase
@@ -111,35 +115,27 @@ export async function gatherReportData(
     }
   }
 
-  // Finance pivot (admin only): every user × project allocated man-hours + total.
+  // Finance pivot (admin only): the client pivots financeAllocations per month. We
+  // send the directory (all users, incl. bench) so zero rows appear, plus the
+  // project-name columns. Role → Manager for Admins/Manager-Leads, else Software Engineer.
   const financeProjects = projects.map((p) => p.project_name);
-  let finance: FinanceRow[] = [];
+  let financePeople: FinancePerson[] = [];
   if (opts.isAdmin) {
     const { data: uRows } = await supabase
       .from("users")
-      .select("user_id, full_name, role")
+      .select("user_id, full_name, employee_id, designation:designation_option(label)")
       .order("full_name");
-    finance = ((uRows ?? []) as { user_id: string; full_name: string; role: string | null }[]).map(
-      (u) => {
-        const byProject = hoursByUser.get(u.user_id);
-        const hoursOut: Record<string, number> = {};
-        let total = 0;
-        if (byProject) {
-          byProject.forEach((h, pName) => {
-            hoursOut[pName] = round1(h);
-            total += h;
-          });
-        }
-        return {
-          name: u.full_name,
-          role_label: u.role === "Admin" || u.role === "Manager-Lead" ? "Manager" : "Software Engineer",
-          lob: "SDG",
-          department: "Delivery",
-          hours: hoursOut,
-          total: round1(total),
-        };
-      }
-    );
+    financePeople = ((uRows ?? []) as unknown as {
+      user_id: string;
+      full_name: string;
+      employee_id: string | null;
+      designation: { label: string } | null;
+    }[]).map((u) => ({
+      user_id: u.user_id,
+      employee_id: u.employee_id,
+      name: u.full_name,
+      role_label: u.designation?.label ?? "—",
+    }));
   }
 
   const scopeLabel = opts.projectId
@@ -156,7 +152,9 @@ export async function gatherReportData(
     projectRows,
     team,
     hours,
-    finance,
+    finance: [], // computed client-side per month; carried on the export POST
+    financePeople,
+    financeAllocations,
     financeProjects,
   };
 }

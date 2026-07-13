@@ -26,15 +26,30 @@ export type ReportProjectRow = ProjectMetrics & {
 };
 
 // One row per person for the admin Finance pivot: allocated man-hours per project
-// (keyed by project_name) plus a Total. LOB/Department are constants; Role is
-// Manager for Admins/Manager-Leads, else Software Engineer.
+// (keyed by project_name) plus a Total, computed for a selected month on the client.
+// Role is Manager for Admins/Manager-Leads, else Software Engineer.
 export type FinanceRow = {
+  employee_id: string | null;
   name: string;
-  role_label: string;
-  lob: string;
-  department: string;
+  role_label: string; // job title (designation)
   total: number;
-  hours: Record<string, number>; // project_name → summed allocated man-hours
+  hours: Record<string, number>; // project_name → allocated man-hours (for the month)
+};
+
+// Raw inputs the client pivots per month (server sends these; the month math lives
+// client-side so switching months is instant).
+export type FinancePerson = {
+  user_id: string;
+  employee_id: string | null;
+  name: string;
+  role_label: string; // job title (designation)
+};
+export type FinanceAllocation = {
+  user_id: string;
+  project_name: string;
+  allocated_hours: number;
+  start_date: string;
+  end_date: string;
 };
 
 export type ReportData = {
@@ -45,6 +60,11 @@ export type ReportData = {
   projectRows: ReportProjectRow[];
   team: ReportTeamRow[];
   hours: ReportHoursRow[];
-  finance: FinanceRow[]; // admin-only; [] otherwise
-  financeProjects: string[]; // ordered project-name columns for the Finance pivot
+  // Finance (admin-only). `financePeople`/`financeAllocations` feed the client pivot;
+  // `finance` carries the client-computed month rows on the export POST (server
+  // returns []). `financeProjects` are the project-name columns.
+  finance: FinanceRow[];
+  financePeople: FinancePerson[];
+  financeAllocations: FinanceAllocation[];
+  financeProjects: string[];
 };

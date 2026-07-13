@@ -17,7 +17,11 @@ function pick(cols: ColSpec[], keys?: string[]): ColSpec[] {
 // Spec 08 §3.2 — raw, pivot-ready sheets (no charts): Portfolio Summary, Logged
 // Hours, and (admin) a Finance pivot. `visible` (from the on-screen column picker)
 // narrows each sheet to the shown columns.
-export async function buildXlsx(data: ReportData, visible?: VisibleColumns): Promise<Buffer> {
+export async function buildXlsx(
+  data: ReportData,
+  visible?: VisibleColumns,
+  financeMonthLabel?: string
+): Promise<Buffer> {
   const wb = new ExcelJS.Workbook();
   wb.creator = "PM Dashboard";
   wb.created = data.generatedAt;
@@ -79,24 +83,25 @@ export async function buildXlsx(data: ReportData, visible?: VisibleColumns): Pro
 
   const sheets = [s1, s2];
 
-  // Sheet 3 — Finance (admin only): person × project allocated man-hours pivot.
+  // Sheet 3 — Finance (admin only): person × project allocated man-hours pivot for
+  // the selected month. Sheet name carries the month (Excel caps names at 31 chars).
   if (data.finance.length > 0) {
-    const s3 = wb.addWorksheet("Finance");
+    const suffix = financeMonthLabel ? ` (${financeMonthLabel})` : "";
+    const name = `Finance${suffix}`.slice(0, 31);
+    const s3 = wb.addWorksheet(name);
     s3.columns = pick(
       [
-        { header: "LOB", key: "lob", width: 8 },
-        { header: "Department", key: "department", width: 14 },
+        { header: "Employee ID", key: "employee_id", width: 14 },
         { header: "Employee Name", key: "name", width: 22 },
         { header: "Role", key: "role_label", width: 18 },
-        ...data.financeProjects.map((name) => ({ header: name, key: name, width: 14 })),
+        ...data.financeProjects.map((p) => ({ header: p, key: p, width: 14 })),
         { header: "Total", key: "total", width: 10 },
       ],
       visible?.finance
     );
     for (const f of data.finance) {
       s3.addRow({
-        lob: f.lob,
-        department: f.department,
+        employee_id: f.employee_id ?? "",
         name: f.name,
         role_label: f.role_label,
         ...f.hours,

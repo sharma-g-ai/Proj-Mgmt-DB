@@ -107,6 +107,49 @@ export function weekCapacity(weeklyCapacity: number, weekMonday: string): number
   return businessDays(weekMonday, addDays(weekMonday, 6)) * (weeklyCapacity / 5);
 }
 
+// Man-hours an allocation contributes to a calendar month ("YYYY-MM"), spreading
+// allocated_hours evenly across the allocation's weekdays (mirrors committedInWeek).
+export function committedInMonth(
+  alloc: { allocated_hours: number; start_date: string; end_date: string },
+  month: string
+): number {
+  const totalDays = businessDays(alloc.start_date, alloc.end_date);
+  if (totalDays === 0) return 0;
+  const [y, m] = month.split("-").map(Number);
+  const monthStart = `${month}-01`;
+  const monthEnd = new Date(Date.UTC(y, m, 0)).toISOString().slice(0, 10); // day 0 of next month
+  const overlapStart = alloc.start_date > monthStart ? alloc.start_date : monthStart;
+  const overlapEnd = alloc.end_date < monthEnd ? alloc.end_date : monthEnd;
+  return (alloc.allocated_hours / totalDays) * businessDays(overlapStart, overlapEnd);
+}
+
+// Inclusive list of "YYYY-MM" months spanning two date strings (capped for safety).
+export function monthsInRange(startISO: string, endISO: string, cap = 120): string[] {
+  const out: string[] = [];
+  let [y, m] = startISO.slice(0, 7).split("-").map(Number);
+  const end = endISO.slice(0, 7);
+  let cur = `${y}-${String(m).padStart(2, "0")}`;
+  while (cur <= end && out.length < cap) {
+    out.push(cur);
+    m += 1;
+    if (m > 12) {
+      m = 1;
+      y += 1;
+    }
+    cur = `${y}-${String(m).padStart(2, "0")}`;
+  }
+  return out;
+}
+
+const MONTH_ABBR = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+// "2026-07" -> "Jul 2026".
+export function fmtMonthLabel(month: string): string {
+  const [y, m] = month.split("-").map(Number);
+  if (!y || !m) return month;
+  return `${MONTH_ABBR[m - 1]} ${y}`;
+}
+
 export function addDays(iso: string, n: number): string {
   const d = new Date(`${iso}T00:00:00Z`);
   d.setUTCDate(d.getUTCDate() + n);

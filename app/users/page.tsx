@@ -2,7 +2,7 @@ import Link from "next/link";
 import { requireAdmin } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { AppHeader } from "@/components/AppHeader";
-import type { Profile } from "@/lib/types";
+import type { UserRow } from "@/lib/types";
 
 type SearchParams = { role?: string; status?: string };
 type Status = "Active" | "Pending" | "Deactivated";
@@ -27,10 +27,10 @@ export default async function UsersPage({ searchParams }: { searchParams: Search
 
   const { data } = await supabase
     .from("users")
-    .select("user_id, full_name, email, role, weekly_capacity_hrs, is_active")
+    .select("user_id, full_name, email, role, weekly_capacity_hrs, is_active, employee_id, designation:designation_option(label)")
     .order("full_name");
 
-  let users = (data ?? []) as Profile[];
+  let users = (data ?? []) as unknown as UserRow[];
   if (searchParams.role) users = users.filter((u) => u.role === searchParams.role);
   if (searchParams.status)
     users = users.filter((u) => userStatus(u) === searchParams.status);
@@ -56,14 +56,23 @@ export default async function UsersPage({ searchParams }: { searchParams: Search
               </p>
             )}
           </div>
-          <Link href="/users/new"
-            className="rounded-md bg-gray-900 px-3 py-2 text-sm font-medium text-white hover:bg-gray-800">
-            + New User
-          </Link>
+          <div className="flex items-center gap-2">
+            <Link href="/users/designations" className="px-2 py-1.5 text-sm text-gray-500 hover:text-brand-700">
+              Manage designations
+            </Link>
+            <Link href="/users/new"
+              className="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
+              + New User
+            </Link>
+            <Link href="/users/new?kind=resource"
+              className="rounded-md bg-brand-600 px-3 py-2 text-sm font-medium text-white hover:bg-brand-700">
+              + Add Resource
+            </Link>
+          </div>
         </div>
 
         <form method="get" className="mb-4 flex flex-wrap items-end gap-3">
-          <Filter name="role" label="Role" value={searchParams.role}
+          <Filter name="role" label="Access" value={searchParams.role}
             options={["Admin", "Manager-Lead"]} />
           <Filter name="status" label="Status" value={searchParams.status}
             options={["Active", "Pending", "Deactivated"]} />
@@ -81,7 +90,9 @@ export default async function UsersPage({ searchParams }: { searchParams: Search
               <tr>
                 <th className="px-4 py-2 font-medium">Full Name</th>
                 <th className="px-4 py-2 font-medium">Email</th>
-                <th className="px-4 py-2 font-medium">Role</th>
+                <th className="px-4 py-2 font-medium">Employee ID</th>
+                <th className="px-4 py-2 font-medium">Access</th>
+                <th className="px-4 py-2 font-medium">Designation</th>
                 <th className="px-4 py-2 font-medium">Capacity (hrs)</th>
                 <th className="px-4 py-2 font-medium">Status</th>
                 <th className="px-4 py-2" />
@@ -90,7 +101,7 @@ export default async function UsersPage({ searchParams }: { searchParams: Search
             <tbody className="divide-y divide-gray-100">
               {users.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-4 py-10 text-center text-gray-500">No users match.</td>
+                  <td colSpan={8} className="px-4 py-10 text-center text-gray-500">No users match.</td>
                 </tr>
               )}
               {users.map((u) => {
@@ -99,7 +110,9 @@ export default async function UsersPage({ searchParams }: { searchParams: Search
                   <tr key={u.user_id} className={status === "Pending" ? "bg-amber-50/40" : ""}>
                     <td className="px-4 py-3 font-medium text-gray-900">{u.full_name}</td>
                     <td className="px-4 py-3 text-gray-600">{u.email}</td>
+                    <td className="px-4 py-3 text-gray-600">{u.employee_id ?? "—"}</td>
                     <td className="px-4 py-3 text-gray-600">{u.role ?? "—"}</td>
+                    <td className="px-4 py-3 text-gray-600">{u.designation?.label ?? "—"}</td>
                     <td className="px-4 py-3 text-gray-600">{u.weekly_capacity_hrs}</td>
                     <td className="px-4 py-3">
                       <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset ${statusStyles[status]}`}>

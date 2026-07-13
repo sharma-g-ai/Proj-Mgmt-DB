@@ -43,6 +43,19 @@ export type ProjectMetrics = {
 
 export type LookupOption = { option_id: string; label: string; is_active: boolean };
 
+// A row in the Users admin list. `role` is ACCESS; `designation`/`employee_id` are
+// descriptive, access-independent fields.
+export type UserRow = {
+  user_id: string;
+  full_name: string;
+  email: string;
+  role: UserRole | null;
+  weekly_capacity_hrs: number;
+  is_active: boolean;
+  employee_id: string | null;
+  designation: { label: string } | null; // joined from designation_option
+};
+
 export type UserOption = {
   user_id: string;
   full_name: string;

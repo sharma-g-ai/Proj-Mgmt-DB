@@ -42,6 +42,7 @@ export async function POST(request: Request) {
     hours?: ReportHoursRow[];
     finance?: FinanceRow[];
     financeProjects?: string[];
+    financeMonthLabel?: string;
     visibleColumns?: { projects?: string[]; hours?: string[]; finance?: string[] };
   };
 
@@ -52,6 +53,7 @@ export async function POST(request: Request) {
   // Finance is admin-only; ignore any posted finance rows from a non-admin.
   const finance = isAdmin && Array.isArray(body.finance) ? body.finance : [];
   const financeProjects = Array.isArray(body.financeProjects) ? body.financeProjects : [];
+  const financeMonthLabel = typeof body.financeMonthLabel === "string" ? body.financeMonthLabel : "";
 
   // The PDF works one-per-project; de-duplicate the expanded rows by project_id
   // (each row carries the full ProjectMetrics shape). Preserves shown order.
@@ -78,6 +80,8 @@ export async function POST(request: Request) {
     team,
     hours,
     finance,
+    financePeople: [],
+    financeAllocations: [],
     financeProjects,
   };
 
@@ -87,7 +91,7 @@ export async function POST(request: Request) {
   const base = `PM-Dashboard-Report-${scopeSlug}-${dateStr}`;
 
   if (format === "xlsx") {
-    const buf = await buildXlsx(data, body.visibleColumns);
+    const buf = await buildXlsx(data, body.visibleColumns, financeMonthLabel);
     return new NextResponse(new Uint8Array(buf), {
       headers: {
         "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",

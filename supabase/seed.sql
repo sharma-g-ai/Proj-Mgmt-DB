@@ -27,24 +27,40 @@
 --    started work yet; two Pixorex rows have no dates).
 
 -- ---------------------------------------------------------------------------
--- 1. Users  (RI leads active; team-only members pending)
+-- 0. Designation lookup (job titles; also created/seeded by migration 0015).
 -- ---------------------------------------------------------------------------
-insert into public.users (full_name, email, role, is_active, weekly_capacity_hrs) values
-  ('Rajesh',            'rajesh@amzur.com',              'Manager-Lead'::public.user_role, true,  40),
-  ('Balu',              'balu@amzur.com',                'Manager-Lead'::public.user_role, true,  40),
-  ('Siva',              'siva@amzur.com',                'Manager-Lead'::public.user_role, true,  40),
-  ('Geetashish Sharma', 'geetashish.sharma@amzur.com',   'Manager-Lead'::public.user_role, true,  40),
-  ('Yogitha',           'yogitha@amzur.com',             null::public.user_role,           false, 40),
-  ('Pushpa',            'pushpa@amzur.com',              null::public.user_role,           false, 40),
-  ('Lavanya',           'lavanya@amzur.com',             null::public.user_role,           false, 40),
-  ('Raghu',             'raghu@amzur.com',               null::public.user_role,           false, 40),
-  ('Vishnu',            'vishnu@amzur.com',              null::public.user_role,           false, 40),
-  ('Murali',            'murali@amzur.com',              null::public.user_role,           false, 40),
-  ('Iswarya',           'iswarya@amzur.com',             null::public.user_role,           false, 40),
-  ('Teja',              'teja@amzur.com',                null::public.user_role,           false, 40),
-  ('Amrutha',           'amrutha@amzur.com',             null::public.user_role,           false, 40),
-  ('Suchith',           'suchith@amzur.com',             null::public.user_role,           false, 40),
-  ('ATG Team',          'atg.team@amzur.com',            null::public.user_role,           false, 40)
+insert into public.designation_option (label) values
+  ('Technical Lead'), ('Technical Architect'), ('Head'),
+  ('Sr Software Engineer'), ('Software Engineer'), ('Sr UI/UX Designer'), ('Software Trainee')
+on conflict (label) do nothing;
+
+-- ---------------------------------------------------------------------------
+-- 1. Users  (RI leads active w/ access; everyone else = resource, no access).
+-- Access (role) is independent of designation (job title). employee_id + the
+-- designation are admin-managed descriptive fields.
+-- ---------------------------------------------------------------------------
+with u (full_name, email, role, is_active, weekly_capacity_hrs, employee_id, designation) as (
+  values
+    ('Rajesh Talari',                'rajesh@amzur.com',            'Manager-Lead', true,  40, 'AMZ/IND/187', 'Technical Lead'),
+    ('Bala subrahmanyam',            'balu@amzur.com',              'Manager-Lead', true,  40, 'AMZ/IND/152', 'Head'),
+    ('Siva Sekhar Rao Jamula',       'siva@amzur.com',              'Manager-Lead', true,  40, 'AMZ/IND/336', 'Technical Architect'),
+    ('Geetashish Sharma',            'geetashish.sharma@amzur.com', 'Manager-Lead', true,  40, 'AMZ/IND/884', 'Sr Software Engineer'),
+    ('Naga Yamuna Yogitha Kumari',   'yogitha@amzur.com',           null,           false, 40, 'AMZ/IND/898', 'Software Trainee'),
+    ('Pushpa Amaravalli Nacharla',   'pushpa@amzur.com',            null,           false, 40, 'AMZ/IND/895', 'Software Trainee'),
+    ('Lavanya Joga',                 'lavanya@amzur.com',           null,           false, 40, 'AMZ/IND/343', 'Software Engineer'),
+    ('Raghu Ram Chowdary Marni',     'raghu@amzur.com',             null,           false, 40, 'AMZ/IND/906', 'Software Trainee'),
+    ('Vishnu Sai Kanthamraju',       'vishnu@amzur.com',            null,           false, 40, 'AMZ/IND/877', 'Software Engineer'),
+    ('Murali Kumar Puramaneni',      'murali@amzur.com',            null,           false, 40, 'AMZ/IND/268', 'Sr UI/UX Designer'),
+    ('Iswarya Kolimalla',            'iswarya@amzur.com',           null,           false, 40, 'AMZ/IND/896', 'Software Trainee'),
+    ('Sai Teja Kollipara',           'teja@amzur.com',              null,           false, 40, 'AMZ/IND/886', 'Software Engineer'),
+    ('Divya Sri Amrutha Yalla',      'amrutha@amzur.com',           null,           false, 40, 'AMZ/IND/897', 'Software Trainee'),
+    ('Suchith Goud Veeramalla',      'suchith@amzur.com',           null,           false, 40, 'AMZ/IND/911', 'Software Engineer'),
+    ('ATG Team',                     'atg.team@amzur.com',          null,           false, 40, null,          null)
+)
+insert into public.users (full_name, email, role, is_active, weekly_capacity_hrs, employee_id, designation_id)
+select u.full_name, u.email, u.role::public.user_role, u.is_active, u.weekly_capacity_hrs, u.employee_id, d.option_id
+from u
+left join public.designation_option d on d.label = u.designation
 on conflict (email) do nothing;
 
 -- ---------------------------------------------------------------------------

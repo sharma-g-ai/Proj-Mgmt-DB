@@ -1,9 +1,16 @@
 "use client";
 
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { DataTable, type ColumnDef } from "@/components/report/DataTable";
-import { fmtPct, fmtHours, fmtDate } from "@/lib/format";
-import type { ReportTeamRow, ReportHoursRow, ReportProjectRow, FinanceRow } from "@/lib/report/types";
+import { fmtPct, fmtHours, fmtDate, round1, committedInMonth, monthsInRange, fmtMonthLabel } from "@/lib/format";
+import type {
+  ReportTeamRow,
+  ReportHoursRow,
+  ReportProjectRow,
+  FinanceRow,
+  FinancePerson,
+  FinanceAllocation,
+} from "@/lib/report/types";
 
 type Tab = "projects" | "hours" | "finance";
 
@@ -13,7 +20,8 @@ export function ReportWorkbook({
   projectRows,
   team,
   hours,
-  finance,
+  financePeople,
+  financeAllocations,
   financeProjects,
   scopeLabel,
   isAdmin,
@@ -21,7 +29,8 @@ export function ReportWorkbook({
   projectRows: ReportProjectRow[];
   team: ReportTeamRow[]; // not shown as a tab; forwarded to the export for PDF rosters
   hours: ReportHoursRow[];
-  finance: FinanceRow[]; // admin-only
+  financePeople: FinancePerson[]; // admin-only
+  financeAllocations: FinanceAllocation[]; // admin-only; pivoted per month on the client
   financeProjects: string[]; // ordered project-name columns for the Finance pivot
   scopeLabel: string;
   isAdmin: boolean;
@@ -34,7 +43,8 @@ export function ReportWorkbook({
   // the current view without re-rendering on every keystroke.
   const resolvedProjects = useRef<ReportProjectRow[]>(projectRows);
   const resolvedHours = useRef<ReportHoursRow[]>(hours);
-  const resolvedFinance = useRef<FinanceRow[]>(finance);
+  const resolvedFinance = useRef<FinanceRow[]>([]); // populated by FinanceTab
+  const financeMonthLabel = useRef<string>("");
 
   const onProjects = useCallback((r: ReportProjectRow[]) => {
     resolvedProjects.current = r;
@@ -45,14 +55,14 @@ export function ReportWorkbook({
   const onFinance = useCallback((r: FinanceRow[]) => {
     resolvedFinance.current = r;
   }, []);
-
-  // Finance columns are dynamic (one per project); build them from financeProjects.
-  const financeColumns = useMemo(() => buildFinanceColumns(financeProjects), [financeProjects]);
+  const onFinanceMonth = useCallback((label: string) => {
+    financeMonthLabel.current = label;
+  }, []);
 
   // Visible column keys per tab (drives which columns the export includes).
   const visibleProjects = useRef<string[]>(projectColumns.map((c) => c.key));
   const visibleHours = useRef<string[]>(hoursColumns.map((c) => c.key));
-  const visibleFinance = useRef<string[]>(financeColumns.map((c) => c.key));
+  const visibleFinance = useRef<string[]>([]); // set by FinanceTab's DataTable on mount
   const onProjectsCols = useCallback((k: string[]) => {
     visibleProjects.current = k;
   }, []);
@@ -75,6 +85,7 @@ export function ReportWorkbook({
         hours: resolvedHours.current,
         finance: resolvedFinance.current,
         financeProjects,
+        financeMonthLabel: financeMonthLabel.current,
         visibleColumns: {
           projects: visibleProjects.current,
           hours: visibleHours.current,
@@ -178,12 +189,13 @@ export function ReportWorkbook({
       </div>
       {isAdmin && (
         <div className={tab === "finance" ? "" : "hidden"}>
-          <DataTable
-            rows={finance}
-            columns={financeColumns}
+          <FinanceTab
+            people={financePeople}
+            allocations={financeAllocations}
+            projects={financeProjects}
             onResolved={onFinance}
             onVisibleColumnsChange={onFinanceCols}
-            emptyMessage="No people to show."
+            onMonthLabel={onFinanceMonth}
           />
         </div>
       )}
@@ -211,6 +223,113 @@ function TabButton({
       {children}
     </button>
   );
+}
+
+// Finance tab — a month-scoped person × project allocated-man-hours pivot (admin).
+// The month `<select>` recomputes each person's per-project hours from the raw
+// allocations (weekday-spread into the month) plus a Total.
+const ALL_TIME = "all";
+function FinanceTab({
+  people,
+  allocations,
+  projects,
+  onResolved,
+  onVisibleColumnsChange,
+  onMonthLabel,
+}: {
+  people: FinancePerson[];
+  allocations: FinanceAllocation[];
+  projects: string[];
+  onResolved: (r: FinanceRow[]) => void;
+  onVisibleColumnsChange: (k: string[]) => void;
+  onMonthLabel: (label: string) => void;
+}) {
+  const months = useMemo(() => {
+    if (allocations.length === 0) return [];
+    let min = allocations[0].start_date;
+    let max = allocations[0].end_date;
+    for (const a of allocations) {
+      if (a.start_date < min) min = a.start_date;
+      if (a.end_date > max) max = a.end_date;
+    }
+    return monthsInRange(min, max);
+  }, [allocations]);
+
+  const currentMonth = new Date().toISOString().slice(0, 7);
+  const [month, setMonth] = useState<string>(() =>
+    months.includes(currentMonth) ? currentMonth : months[months.length - 1] ?? ALL_TIME
+  );
+
+  const label = month === ALL_TIME ? "All time" : fmtMonthLabel(month);
+  useEffect(() => {
+    onMonthLabel(label);
+  }, [label, onMonthLabel]);
+
+  const rows = useMemo(
+    () => buildFinanceRows(people, allocations, month === ALL_TIME ? null : month),
+    [people, allocations, month]
+  );
+  const columns = useMemo(() => buildFinanceColumns(projects), [projects]);
+
+  return (
+    <div className="space-y-3">
+      <label className="flex items-center gap-2 text-sm text-gray-600">
+        Month
+        <select
+          value={month}
+          onChange={(e) => setMonth(e.target.value)}
+          className="rounded-md border border-gray-300 bg-white px-2 py-1.5 text-sm"
+        >
+          {months.map((m) => (
+            <option key={m} value={m}>
+              {fmtMonthLabel(m)}
+            </option>
+          ))}
+          <option value={ALL_TIME}>All time</option>
+        </select>
+      </label>
+      <DataTable
+        rows={rows}
+        columns={columns}
+        onResolved={onResolved}
+        onVisibleColumnsChange={onVisibleColumnsChange}
+        emptyMessage="No people to show."
+      />
+    </div>
+  );
+}
+
+// Pivot allocations for a month (or all-time when month is null) into one row per
+// person: hours[project_name] and a Total.
+function buildFinanceRows(
+  people: FinancePerson[],
+  allocations: FinanceAllocation[],
+  month: string | null
+): FinanceRow[] {
+  const byUser = new Map<string, Record<string, number>>();
+  for (const a of allocations) {
+    const hrs = month ? committedInMonth(a, month) : a.allocated_hours;
+    if (hrs <= 0) continue;
+    const rec = byUser.get(a.user_id) ?? {};
+    rec[a.project_name] = (rec[a.project_name] ?? 0) + hrs;
+    byUser.set(a.user_id, rec);
+  }
+  return people.map((p) => {
+    const rec = byUser.get(p.user_id) ?? {};
+    const hoursOut: Record<string, number> = {};
+    let total = 0;
+    for (const k in rec) {
+      hoursOut[k] = round1(rec[k]);
+      total += rec[k];
+    }
+    return {
+      employee_id: p.employee_id,
+      name: p.name,
+      role_label: p.role_label,
+      hours: hoursOut,
+      total: round1(total),
+    };
+  });
 }
 
 const dash = (s: string | null | undefined) => s ?? "—";
@@ -250,16 +369,14 @@ const hoursColumns: ColumnDef<ReportHoursRow>[] = [
   { key: "source", label: "Source", filter: "select", sortValue: (r) => r.source, display: (r) => r.source, filterText: (r) => r.source },
 ];
 
-// Finance tab — person × project allocated man-hours pivot (admin). Fixed metadata
-// columns + one column per project + Total.
+// Finance tab — Employee ID · Employee Name · Role · one column per project · Total.
 function buildFinanceColumns(projectNames: string[]): ColumnDef<FinanceRow>[] {
   const fixed: ColumnDef<FinanceRow>[] = [
-    { key: "lob", label: "LOB", filter: "select", sortValue: (r) => r.lob, display: (r) => r.lob, filterText: (r) => r.lob },
-    { key: "department", label: "Department", filter: "select", sortValue: (r) => r.department, display: (r) => r.department, filterText: (r) => r.department },
+    { key: "employee_id", label: "Employee ID", filter: "text", sortValue: (r) => r.employee_id ?? "", display: (r) => r.employee_id ?? "—", filterText: (r) => r.employee_id ?? "" },
     { key: "name", label: "Employee Name", filter: "text", sortValue: (r) => r.name, display: (r) => r.name, filterText: (r) => r.name },
     { key: "role_label", label: "Role", filter: "select", sortValue: (r) => r.role_label, display: (r) => r.role_label, filterText: (r) => r.role_label },
   ];
-  const projects: ColumnDef<FinanceRow>[] = projectNames.map((name) => ({
+  const projectCols: ColumnDef<FinanceRow>[] = projectNames.map((name) => ({
     key: name,
     label: name,
     align: "right",
@@ -277,5 +394,5 @@ function buildFinanceColumns(projectNames: string[]): ColumnDef<FinanceRow>[] {
     display: (r) => fmtHours(r.total),
     filterText: (r) => fmtHours(r.total),
   };
-  return [...fixed, ...projects, total];
+  return [...fixed, ...projectCols, total];
 }
