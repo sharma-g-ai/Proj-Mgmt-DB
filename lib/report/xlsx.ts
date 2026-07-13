@@ -3,7 +3,7 @@ import { round1 } from "@/lib/format";
 import type { ReportData } from "@/lib/report/types";
 
 type ColSpec = { header: string; key: string; width: number };
-type VisibleColumns = { projects?: string[]; team?: string[]; hours?: string[] };
+type VisibleColumns = { projects?: string[]; hours?: string[]; finance?: string[] };
 
 // Keep only the columns whose key is in `keys` (preserving definition order). When
 // `keys` is undefined, keep all — so the picker is purely additive.
@@ -14,8 +14,9 @@ function pick(cols: ColSpec[], keys?: string[]): ColSpec[] {
   return kept.length > 0 ? kept : cols; // never emit a header-less sheet
 }
 
-// Spec 08 §3.2 — three sheets of raw, pivot-ready numbers (no charts). `visible`
-// (from the on-screen column picker) narrows each sheet to the shown columns.
+// Spec 08 §3.2 — raw, pivot-ready sheets (no charts): Portfolio Summary, Logged
+// Hours, and (admin) a Finance pivot. `visible` (from the on-screen column picker)
+// narrows each sheet to the shown columns.
 export async function buildXlsx(data: ReportData, visible?: VisibleColumns): Promise<Buffer> {
   const wb = new ExcelJS.Workbook();
   wb.creator = "PM Dashboard";
@@ -62,35 +63,50 @@ export async function buildXlsx(data: ReportData, visible?: VisibleColumns): Pro
     });
   }
 
-  // Sheet 2 — Team Allocation Detail (one row per ProjectTeamMember).
-  const s2 = wb.addWorksheet("Team Allocation Detail");
+  // Sheet 2 — Logged Hours (one row per HoursLogEntry).
+  const s2 = wb.addWorksheet("Logged Hours");
   s2.columns = pick(
     [
       { header: "Project", key: "project_name", width: 24 },
       { header: "Person", key: "person", width: 20 },
-      { header: "Start", key: "start_date", width: 12 },
-      { header: "End", key: "end_date", width: 12 },
-      { header: "Man-hours", key: "allocated_hours", width: 13 },
-    ],
-    visible?.team
-  );
-  for (const t of data.team) s2.addRow(t);
-
-  // Sheet 3 — Hours Log Detail (one row per HoursLogEntry).
-  const s3 = wb.addWorksheet("Hours Log Detail");
-  s3.columns = pick(
-    [
-      { header: "Project", key: "project_name", width: 24 },
-      { header: "Person", key: "person", width: 20 },
       { header: "Date", key: "entry_date", width: 12 },
-      { header: "Hours", key: "hours_logged", width: 10 },
+      { header: "Logged Hours", key: "hours_logged", width: 13 },
       { header: "Source", key: "source", width: 10 },
     ],
     visible?.hours
   );
-  for (const h of data.hours) s3.addRow(h);
+  for (const h of data.hours) s2.addRow(h);
 
-  for (const ws of [s1, s2, s3]) {
+  const sheets = [s1, s2];
+
+  // Sheet 3 — Finance (admin only): person × project allocated man-hours pivot.
+  if (data.finance.length > 0) {
+    const s3 = wb.addWorksheet("Finance");
+    s3.columns = pick(
+      [
+        { header: "LOB", key: "lob", width: 8 },
+        { header: "Department", key: "department", width: 14 },
+        { header: "Employee Name", key: "name", width: 22 },
+        { header: "Role", key: "role_label", width: 18 },
+        ...data.financeProjects.map((name) => ({ header: name, key: name, width: 14 })),
+        { header: "Total", key: "total", width: 10 },
+      ],
+      visible?.finance
+    );
+    for (const f of data.finance) {
+      s3.addRow({
+        lob: f.lob,
+        department: f.department,
+        name: f.name,
+        role_label: f.role_label,
+        ...f.hours,
+        total: num(f.total),
+      });
+    }
+    sheets.push(s3);
+  }
+
+  for (const ws of sheets) {
     ws.getRow(1).font = { bold: true };
     ws.views = [{ state: "frozen", ySplit: 1 }];
     // Native Excel filter dropdowns over the header row.

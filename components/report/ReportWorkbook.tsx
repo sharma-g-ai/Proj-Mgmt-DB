@@ -1,11 +1,11 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { DataTable, type ColumnDef } from "@/components/report/DataTable";
 import { fmtPct, fmtHours, fmtDate } from "@/lib/format";
-import type { ReportTeamRow, ReportHoursRow, ReportProjectRow } from "@/lib/report/types";
+import type { ReportTeamRow, ReportHoursRow, ReportProjectRow, FinanceRow } from "@/lib/report/types";
 
-type Tab = "projects" | "team" | "hours";
+type Tab = "projects" | "hours" | "finance";
 
 // Interactive, Excel-like report. Loads the full RLS-scoped dataset once, filters
 // and sorts client-side, and exports exactly the rows currently shown (Spec 08).
@@ -13,12 +13,16 @@ export function ReportWorkbook({
   projectRows,
   team,
   hours,
+  finance,
+  financeProjects,
   scopeLabel,
   isAdmin,
 }: {
   projectRows: ReportProjectRow[];
-  team: ReportTeamRow[];
+  team: ReportTeamRow[]; // not shown as a tab; forwarded to the export for PDF rosters
   hours: ReportHoursRow[];
+  finance: FinanceRow[]; // admin-only
+  financeProjects: string[]; // ordered project-name columns for the Finance pivot
   scopeLabel: string;
   isAdmin: boolean;
 }) {
@@ -29,31 +33,34 @@ export function ReportWorkbook({
   // Latest resolved (filtered + sorted) rows per tab, kept in refs so export reads
   // the current view without re-rendering on every keystroke.
   const resolvedProjects = useRef<ReportProjectRow[]>(projectRows);
-  const resolvedTeam = useRef<ReportTeamRow[]>(team);
   const resolvedHours = useRef<ReportHoursRow[]>(hours);
+  const resolvedFinance = useRef<FinanceRow[]>(finance);
 
   const onProjects = useCallback((r: ReportProjectRow[]) => {
     resolvedProjects.current = r;
   }, []);
-  const onTeam = useCallback((r: ReportTeamRow[]) => {
-    resolvedTeam.current = r;
-  }, []);
   const onHours = useCallback((r: ReportHoursRow[]) => {
     resolvedHours.current = r;
   }, []);
+  const onFinance = useCallback((r: FinanceRow[]) => {
+    resolvedFinance.current = r;
+  }, []);
+
+  // Finance columns are dynamic (one per project); build them from financeProjects.
+  const financeColumns = useMemo(() => buildFinanceColumns(financeProjects), [financeProjects]);
 
   // Visible column keys per tab (drives which columns the export includes).
   const visibleProjects = useRef<string[]>(projectColumns.map((c) => c.key));
-  const visibleTeam = useRef<string[]>(teamColumns.map((c) => c.key));
   const visibleHours = useRef<string[]>(hoursColumns.map((c) => c.key));
+  const visibleFinance = useRef<string[]>(financeColumns.map((c) => c.key));
   const onProjectsCols = useCallback((k: string[]) => {
     visibleProjects.current = k;
   }, []);
-  const onTeamCols = useCallback((k: string[]) => {
-    visibleTeam.current = k;
-  }, []);
   const onHoursCols = useCallback((k: string[]) => {
     visibleHours.current = k;
+  }, []);
+  const onFinanceCols = useCallback((k: string[]) => {
+    visibleFinance.current = k;
   }, []);
 
   async function fetchAndSave(format: "pdf" | "xlsx") {
@@ -64,12 +71,14 @@ export function ReportWorkbook({
         format,
         scopeLabel,
         projectRows: resolvedProjects.current,
-        team: resolvedTeam.current,
+        team, // full roster, for the PDF's per-project team lists
         hours: resolvedHours.current,
+        finance: resolvedFinance.current,
+        financeProjects,
         visibleColumns: {
           projects: visibleProjects.current,
-          team: visibleTeam.current,
           hours: visibleHours.current,
+          finance: visibleFinance.current,
         },
       }),
     });
@@ -113,12 +122,14 @@ export function ReportWorkbook({
           <TabButton active={tab === "projects"} onClick={() => setTab("projects")}>
             Projects
           </TabButton>
-          <TabButton active={tab === "team"} onClick={() => setTab("team")}>
-            Team
-          </TabButton>
           <TabButton active={tab === "hours"} onClick={() => setTab("hours")}>
-            Hours
+            Logged Hours
           </TabButton>
+          {isAdmin && (
+            <TabButton active={tab === "finance"} onClick={() => setTab("finance")}>
+              Finance
+            </TabButton>
+          )}
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
@@ -143,8 +154,8 @@ export function ReportWorkbook({
         {isAdmin ? " scoped to all projects." : " scoped to the projects you lead."}
       </p>
 
-      {/* All three mounted; hide inactive so each tab keeps its filters/sort and
-          reports its resolved rows for export. */}
+      {/* All tabs mounted; hide inactive so each keeps its filters/sort and reports
+          its resolved rows for export. */}
       <div className={tab === "projects" ? "" : "hidden"}>
         <DataTable
           rows={projectRows}
@@ -156,15 +167,6 @@ export function ReportWorkbook({
           emptyMessage="No projects match."
         />
       </div>
-      <div className={tab === "team" ? "" : "hidden"}>
-        <DataTable
-          rows={team}
-          columns={teamColumns}
-          onResolved={onTeam}
-          onVisibleColumnsChange={onTeamCols}
-          emptyMessage="No allocations match."
-        />
-      </div>
       <div className={tab === "hours" ? "" : "hidden"}>
         <DataTable
           rows={hours}
@@ -174,6 +176,17 @@ export function ReportWorkbook({
           emptyMessage="No hours logged."
         />
       </div>
+      {isAdmin && (
+        <div className={tab === "finance" ? "" : "hidden"}>
+          <DataTable
+            rows={finance}
+            columns={financeColumns}
+            onResolved={onFinance}
+            onVisibleColumnsChange={onFinanceCols}
+            emptyMessage="No people to show."
+          />
+        </div>
+      )}
     </div>
   );
 }
@@ -228,20 +241,41 @@ const projectColumns: ColumnDef<ReportProjectRow>[] = [
   { key: "is_archived", label: "Archived", filter: "select", group: true, sortValue: (p) => (p.is_archived ? "Yes" : "No"), display: (p) => (p.is_archived ? "Yes" : "No"), filterText: (p) => (p.is_archived ? "Yes" : "No") },
 ];
 
-// Team tab — mirrors the Team Allocation Detail sheet.
-const teamColumns: ColumnDef<ReportTeamRow>[] = [
-  { key: "project_name", label: "Project", filter: "text", sortValue: (r) => r.project_name, display: (r) => r.project_name, filterText: (r) => r.project_name },
-  { key: "person", label: "Person", filter: "text", sortValue: (r) => r.person, display: (r) => r.person, filterText: (r) => r.person },
-  { key: "start_date", label: "Start", filter: "text", sortValue: (r) => r.start_date, display: (r) => fmtDate(r.start_date), filterText: (r) => fmtDate(r.start_date) },
-  { key: "end_date", label: "End", filter: "text", sortValue: (r) => r.end_date, display: (r) => fmtDate(r.end_date), filterText: (r) => fmtDate(r.end_date) },
-  { key: "allocated_hours", label: "Man-hours", align: "right", filter: "text", sortValue: (r) => numSort(r.allocated_hours), display: (r) => fmtHours(r.allocated_hours), filterText: (r) => fmtHours(r.allocated_hours) },
-];
-
-// Hours tab — mirrors the Hours Log Detail sheet.
+// Logged Hours tab — mirrors the Logged Hours sheet.
 const hoursColumns: ColumnDef<ReportHoursRow>[] = [
   { key: "project_name", label: "Project", filter: "text", sortValue: (r) => r.project_name, display: (r) => r.project_name, filterText: (r) => r.project_name },
   { key: "person", label: "Person", filter: "text", sortValue: (r) => r.person, display: (r) => r.person, filterText: (r) => r.person },
   { key: "entry_date", label: "Date", filter: "text", sortValue: (r) => r.entry_date, display: (r) => fmtDate(r.entry_date), filterText: (r) => fmtDate(r.entry_date) },
-  { key: "hours_logged", label: "Hours", align: "right", filter: "text", sortValue: (r) => numSort(r.hours_logged), display: (r) => fmtHours(r.hours_logged), filterText: (r) => fmtHours(r.hours_logged) },
+  { key: "hours_logged", label: "Logged Hours", align: "right", filter: "text", sortValue: (r) => numSort(r.hours_logged), display: (r) => fmtHours(r.hours_logged), filterText: (r) => fmtHours(r.hours_logged) },
   { key: "source", label: "Source", filter: "select", sortValue: (r) => r.source, display: (r) => r.source, filterText: (r) => r.source },
 ];
+
+// Finance tab — person × project allocated man-hours pivot (admin). Fixed metadata
+// columns + one column per project + Total.
+function buildFinanceColumns(projectNames: string[]): ColumnDef<FinanceRow>[] {
+  const fixed: ColumnDef<FinanceRow>[] = [
+    { key: "lob", label: "LOB", filter: "select", sortValue: (r) => r.lob, display: (r) => r.lob, filterText: (r) => r.lob },
+    { key: "department", label: "Department", filter: "select", sortValue: (r) => r.department, display: (r) => r.department, filterText: (r) => r.department },
+    { key: "name", label: "Employee Name", filter: "text", sortValue: (r) => r.name, display: (r) => r.name, filterText: (r) => r.name },
+    { key: "role_label", label: "Role", filter: "select", sortValue: (r) => r.role_label, display: (r) => r.role_label, filterText: (r) => r.role_label },
+  ];
+  const projects: ColumnDef<FinanceRow>[] = projectNames.map((name) => ({
+    key: name,
+    label: name,
+    align: "right",
+    filter: "text",
+    sortValue: (r) => r.hours[name] ?? 0,
+    display: (r) => (r.hours[name] ? fmtHours(r.hours[name]) : "—"),
+    filterText: (r) => (r.hours[name] ? fmtHours(r.hours[name]) : ""),
+  }));
+  const total: ColumnDef<FinanceRow> = {
+    key: "total",
+    label: "Total",
+    align: "right",
+    filter: "text",
+    sortValue: (r) => r.total,
+    display: (r) => fmtHours(r.total),
+    filterText: (r) => fmtHours(r.total),
+  };
+  return [...fixed, ...projects, total];
+}

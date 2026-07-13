@@ -1,7 +1,13 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { addWeeks, mondayOf, round1 } from "@/lib/format";
 import type { ProjectMetrics } from "@/lib/types";
-import type { ReportData, ReportTeamRow, ReportHoursRow, ReportProjectRow } from "@/lib/report/types";
+import type {
+  ReportData,
+  ReportTeamRow,
+  ReportHoursRow,
+  ReportProjectRow,
+  FinanceRow,
+} from "@/lib/report/types";
 
 // Recent-weeks default for the Team Allocation sheet (Spec 08 §3.2).
 const RECENT_WEEKS = 12;
@@ -28,11 +34,13 @@ export async function gatherReportData(
 
   let team: ReportTeamRow[] = [];
   let hours: ReportHoursRow[] = [];
+  // user_id → (project_name → summed allocated hours), for the Finance pivot.
+  const hoursByUser = new Map<string, Map<string, number>>();
 
   if (ids.length > 0) {
     let tq = supabase
       .from("project_team_member")
-      .select("project_id, allocated_hours, start_date, end_date, users(full_name)")
+      .select("project_id, user_id, allocated_hours, start_date, end_date, users(full_name)")
       .in("project_id", ids)
       .order("start_date", { ascending: false });
     if (!opts.fullHistory) {
@@ -40,19 +48,27 @@ export async function gatherReportData(
       tq = tq.gte("end_date", addWeeks(mondayOf(new Date()), -RECENT_WEEKS));
     }
     const { data: tRows } = await tq;
-    team = ((tRows ?? []) as unknown as {
+    const tList = (tRows ?? []) as unknown as {
       project_id: string;
+      user_id: string;
       allocated_hours: number;
       start_date: string;
       end_date: string;
       users: { full_name: string } | null;
-    }[]).map((r) => ({
+    }[];
+    team = tList.map((r) => ({
       project_name: nameById.get(r.project_id) ?? "—",
       person: r.users?.full_name ?? "Unknown",
       start_date: r.start_date,
       end_date: r.end_date,
       allocated_hours: round1(r.allocated_hours),
     }));
+    for (const r of tList) {
+      const pName = nameById.get(r.project_id) ?? "—";
+      const byProject = hoursByUser.get(r.user_id) ?? new Map<string, number>();
+      byProject.set(pName, (byProject.get(pName) ?? 0) + r.allocated_hours);
+      hoursByUser.set(r.user_id, byProject);
+    }
 
     const { data: hRows } = await supabase
       .from("hours_log_entry")
@@ -95,11 +111,52 @@ export async function gatherReportData(
     }
   }
 
+  // Finance pivot (admin only): every user × project allocated man-hours + total.
+  const financeProjects = projects.map((p) => p.project_name);
+  let finance: FinanceRow[] = [];
+  if (opts.isAdmin) {
+    const { data: uRows } = await supabase
+      .from("users")
+      .select("user_id, full_name, role")
+      .order("full_name");
+    finance = ((uRows ?? []) as { user_id: string; full_name: string; role: string | null }[]).map(
+      (u) => {
+        const byProject = hoursByUser.get(u.user_id);
+        const hoursOut: Record<string, number> = {};
+        let total = 0;
+        if (byProject) {
+          byProject.forEach((h, pName) => {
+            hoursOut[pName] = round1(h);
+            total += h;
+          });
+        }
+        return {
+          name: u.full_name,
+          role_label: u.role === "Admin" || u.role === "Manager-Lead" ? "Manager" : "Software Engineer",
+          lob: "SDG",
+          department: "Delivery",
+          hours: hoursOut,
+          total: round1(total),
+        };
+      }
+    );
+  }
+
   const scopeLabel = opts.projectId
     ? `Project: ${projects[0]?.project_name ?? "—"}`
     : opts.isAdmin
       ? "All Projects — Admin View"
       : "My Projects — Manager-Lead View";
 
-  return { generatedBy: opts.generatedBy, generatedAt: new Date(), scopeLabel, projects, projectRows, team, hours };
+  return {
+    generatedBy: opts.generatedBy,
+    generatedAt: new Date(),
+    scopeLabel,
+    projects,
+    projectRows,
+    team,
+    hours,
+    finance,
+    financeProjects,
+  };
 }

@@ -34,6 +34,8 @@ export default async function ReportsPage() {
           projectRows={data.projectRows}
           team={data.team}
           hours={data.hours}
+          finance={data.finance}
+          financeProjects={data.financeProjects}
           scopeLabel={data.scopeLabel}
           isAdmin={isAdmin}
         />

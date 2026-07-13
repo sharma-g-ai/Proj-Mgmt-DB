@@ -2,7 +2,13 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { buildXlsx } from "@/lib/report/xlsx";
 import { buildPdf } from "@/lib/report/pdf";
-import type { ReportData, ReportTeamRow, ReportHoursRow, ReportProjectRow } from "@/lib/report/types";
+import type {
+  ReportData,
+  ReportTeamRow,
+  ReportHoursRow,
+  ReportProjectRow,
+  FinanceRow,
+} from "@/lib/report/types";
 import type { ProjectMetrics } from "@/lib/types";
 
 // pdfkit/exceljs need the Node runtime; reports are always freshly generated.
@@ -34,13 +40,18 @@ export async function POST(request: Request) {
     projectRows?: ReportProjectRow[];
     team?: ReportTeamRow[];
     hours?: ReportHoursRow[];
-    visibleColumns?: { projects?: string[]; team?: string[]; hours?: string[] };
+    finance?: FinanceRow[];
+    financeProjects?: string[];
+    visibleColumns?: { projects?: string[]; hours?: string[]; finance?: string[] };
   };
 
   const format = body.format === "xlsx" ? "xlsx" : "pdf";
   const projectRows = Array.isArray(body.projectRows) ? body.projectRows : [];
   const team = Array.isArray(body.team) ? body.team : [];
   const hours = Array.isArray(body.hours) ? body.hours : [];
+  // Finance is admin-only; ignore any posted finance rows from a non-admin.
+  const finance = isAdmin && Array.isArray(body.finance) ? body.finance : [];
+  const financeProjects = Array.isArray(body.financeProjects) ? body.financeProjects : [];
 
   // The PDF works one-per-project; de-duplicate the expanded rows by project_id
   // (each row carries the full ProjectMetrics shape). Preserves shown order.
@@ -66,6 +77,8 @@ export async function POST(request: Request) {
     projectRows,
     team,
     hours,
+    finance,
+    financeProjects,
   };
 
   const dateStr = new Date().toISOString().slice(0, 10);

@@ -25,6 +25,18 @@ export type ReportProjectRow = ProjectMetrics & {
   allocated_hours: number | null;
 };
 
+// One row per person for the admin Finance pivot: allocated man-hours per project
+// (keyed by project_name) plus a Total. LOB/Department are constants; Role is
+// Manager for Admins/Manager-Leads, else Software Engineer.
+export type FinanceRow = {
+  name: string;
+  role_label: string;
+  lob: string;
+  department: string;
+  total: number;
+  hours: Record<string, number>; // project_name → summed allocated man-hours
+};
+
 export type ReportData = {
   generatedBy: string;
   generatedAt: Date;
@@ -33,4 +45,6 @@ export type ReportData = {
   projectRows: ReportProjectRow[];
   team: ReportTeamRow[];
   hours: ReportHoursRow[];
+  finance: FinanceRow[]; // admin-only; [] otherwise
+  financeProjects: string[]; // ordered project-name columns for the Finance pivot
 };
