@@ -7,7 +7,7 @@ import type {
   ReportHoursRow,
   ReportProjectRow,
   FinancePerson,
-  FinanceAllocation,
+  FinanceHours,
 } from "@/lib/report/types";
 
 // Recent-weeks default for the Team Allocation sheet (Spec 08 §3.2).
@@ -35,8 +35,8 @@ export async function gatherReportData(
 
   let team: ReportTeamRow[] = [];
   let hours: ReportHoursRow[] = [];
-  // Per-assignment atoms the client pivots per month (Finance view).
-  const financeAllocations: FinanceAllocation[] = [];
+  // Per-logged-entry atoms the client pivots per month (admin Finance view).
+  const financeHours: FinanceHours[] = [];
 
   if (ids.length > 0) {
     let tq = supabase
@@ -64,34 +64,38 @@ export async function gatherReportData(
       end_date: r.end_date,
       allocated_hours: round1(r.allocated_hours),
     }));
-    for (const r of tList) {
-      financeAllocations.push({
-        user_id: r.user_id,
-        project_name: nameById.get(r.project_id) ?? "—",
-        allocated_hours: r.allocated_hours,
-        start_date: r.start_date,
-        end_date: r.end_date,
-      });
-    }
 
     const { data: hRows } = await supabase
       .from("hours_log_entry")
-      .select("project_id, hours_logged, entry_date, source, users(full_name)")
+      .select("project_id, user_id, hours_logged, entry_date, source, users(full_name)")
       .in("project_id", ids)
       .order("entry_date", { ascending: false });
-    hours = ((hRows ?? []) as unknown as {
+    const hList = (hRows ?? []) as unknown as {
       project_id: string;
+      user_id: string;
       hours_logged: number;
       entry_date: string;
       source: string;
       users: { full_name: string } | null;
-    }[]).map((r) => ({
+    }[];
+    hours = hList.map((r) => ({
       project_name: nameById.get(r.project_id) ?? "—",
       person: r.users?.full_name ?? "Unknown",
       entry_date: r.entry_date,
       hours_logged: r.hours_logged,
       source: r.source,
     }));
+    // Finance atoms (admin only): the client pivots logged hours per month.
+    if (opts.isAdmin) {
+      for (const r of hList) {
+        financeHours.push({
+          user_id: r.user_id,
+          project_name: nameById.get(r.project_id) ?? "—",
+          hours_logged: r.hours_logged,
+          entry_date: r.entry_date,
+        });
+      }
+    }
   }
 
   // Expand to one row per (project × team member); project columns repeat. A
@@ -115,9 +119,9 @@ export async function gatherReportData(
     }
   }
 
-  // Finance pivot (admin only): the client pivots financeAllocations per month. We
-  // send the directory (all users, incl. bench) so zero rows appear, plus the
-  // project-name columns. Role → Manager for Admins/Manager-Leads, else Software Engineer.
+  // Finance pivot (admin only): the client pivots financeHours (logged entries) per
+  // month. We send the directory (all users, incl. bench) so zero rows appear, plus
+  // the project-name columns. Role label = the user's designation.
   const financeProjects = projects.map((p) => p.project_name);
   let financePeople: FinancePerson[] = [];
   if (opts.isAdmin) {
@@ -154,7 +158,7 @@ export async function gatherReportData(
     hours,
     finance: [], // computed client-side per month; carried on the export POST
     financePeople,
-    financeAllocations,
+    financeHours,
     financeProjects,
   };
 }

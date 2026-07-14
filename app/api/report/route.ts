@@ -81,7 +81,7 @@ export async function POST(request: Request) {
     hours,
     finance,
     financePeople: [],
-    financeAllocations: [],
+    financeHours: [],
     financeProjects,
   };
 

@@ -2,14 +2,14 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { DataTable, type ColumnDef } from "@/components/report/DataTable";
-import { fmtPct, fmtHours, fmtDate, round1, committedInMonth, monthsInRange, fmtMonthLabel } from "@/lib/format";
+import { fmtPct, fmtHours, fmtDate, round1, monthsInRange, fmtMonthLabel } from "@/lib/format";
 import type {
   ReportTeamRow,
   ReportHoursRow,
   ReportProjectRow,
   FinanceRow,
   FinancePerson,
-  FinanceAllocation,
+  FinanceHours,
 } from "@/lib/report/types";
 
 type Tab = "projects" | "hours" | "finance";
@@ -21,7 +21,7 @@ export function ReportWorkbook({
   team,
   hours,
   financePeople,
-  financeAllocations,
+  financeHours,
   financeProjects,
   scopeLabel,
   isAdmin,
@@ -30,7 +30,7 @@ export function ReportWorkbook({
   team: ReportTeamRow[]; // not shown as a tab; forwarded to the export for PDF rosters
   hours: ReportHoursRow[];
   financePeople: FinancePerson[]; // admin-only
-  financeAllocations: FinanceAllocation[]; // admin-only; pivoted per month on the client
+  financeHours: FinanceHours[]; // admin-only; logged entries pivoted per month on the client
   financeProjects: string[]; // ordered project-name columns for the Finance pivot
   scopeLabel: string;
   isAdmin: boolean;
@@ -130,14 +130,14 @@ export function ReportWorkbook({
       {/* Tabs + download actions */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex gap-1 rounded-lg border border-gray-200 bg-gray-50 p-1 text-sm">
-          <TabButton active={tab === "projects"} onClick={() => setTab("projects")}>
+          <TabButton active={tab === "projects"} onClick={() => setTab("projects")} dot="bg-brand-500">
             Projects
           </TabButton>
-          <TabButton active={tab === "hours"} onClick={() => setTab("hours")}>
+          <TabButton active={tab === "hours"} onClick={() => setTab("hours")} dot="bg-amber-500">
             Logged Hours
           </TabButton>
           {isAdmin && (
-            <TabButton active={tab === "finance"} onClick={() => setTab("finance")}>
+            <TabButton active={tab === "finance"} onClick={() => setTab("finance")} dot="bg-emerald-500">
               Finance
             </TabButton>
           )}
@@ -191,7 +191,7 @@ export function ReportWorkbook({
         <div className={tab === "finance" ? "" : "hidden"}>
           <FinanceTab
             people={financePeople}
-            allocations={financeAllocations}
+            hours={financeHours}
             projects={financeProjects}
             onResolved={onFinance}
             onVisibleColumnsChange={onFinanceCols}
@@ -206,54 +206,57 @@ export function ReportWorkbook({
 function TabButton({
   active,
   onClick,
+  dot,
   children,
 }: {
   active: boolean;
   onClick: () => void;
+  dot?: string; // Tailwind bg class for the always-on section color dot
   children: React.ReactNode;
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className={`rounded-md px-3 py-1 font-medium ${
+      className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1 font-medium ${
         active ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
       }`}
     >
+      {dot && <span className={`h-1.5 w-1.5 rounded-full ${dot}`} />}
       {children}
     </button>
   );
 }
 
-// Finance tab — a month-scoped person × project allocated-man-hours pivot (admin).
-// The month `<select>` recomputes each person's per-project hours from the raw
-// allocations (weekday-spread into the month) plus a Total.
+// Finance tab — a month-scoped person × project logged-hours pivot (admin). The
+// month `<select>` recomputes each person's per-project logged hours (summing the
+// entries in that month) plus a Total.
 const ALL_TIME = "all";
 function FinanceTab({
   people,
-  allocations,
+  hours,
   projects,
   onResolved,
   onVisibleColumnsChange,
   onMonthLabel,
 }: {
   people: FinancePerson[];
-  allocations: FinanceAllocation[];
+  hours: FinanceHours[];
   projects: string[];
   onResolved: (r: FinanceRow[]) => void;
   onVisibleColumnsChange: (k: string[]) => void;
   onMonthLabel: (label: string) => void;
 }) {
   const months = useMemo(() => {
-    if (allocations.length === 0) return [];
-    let min = allocations[0].start_date;
-    let max = allocations[0].end_date;
-    for (const a of allocations) {
-      if (a.start_date < min) min = a.start_date;
-      if (a.end_date > max) max = a.end_date;
+    if (hours.length === 0) return [];
+    let min = hours[0].entry_date;
+    let max = hours[0].entry_date;
+    for (const h of hours) {
+      if (h.entry_date < min) min = h.entry_date;
+      if (h.entry_date > max) max = h.entry_date;
     }
     return monthsInRange(min, max);
-  }, [allocations]);
+  }, [hours]);
 
   const currentMonth = new Date().toISOString().slice(0, 7);
   const [month, setMonth] = useState<string>(() =>
@@ -266,8 +269,8 @@ function FinanceTab({
   }, [label, onMonthLabel]);
 
   const rows = useMemo(
-    () => buildFinanceRows(people, allocations, month === ALL_TIME ? null : month),
-    [people, allocations, month]
+    () => buildFinanceRows(people, hours, month === ALL_TIME ? null : month),
+    [people, hours, month]
   );
   const columns = useMemo(() => buildFinanceColumns(projects), [projects]);
 
@@ -299,20 +302,20 @@ function FinanceTab({
   );
 }
 
-// Pivot allocations for a month (or all-time when month is null) into one row per
-// person: hours[project_name] and a Total.
+// Pivot logged-hours entries for a month (or all-time when month is null) into one
+// row per person: hours[project_name] (sum of that month's entries) and a Total.
 function buildFinanceRows(
   people: FinancePerson[],
-  allocations: FinanceAllocation[],
+  hours: FinanceHours[],
   month: string | null
 ): FinanceRow[] {
   const byUser = new Map<string, Record<string, number>>();
-  for (const a of allocations) {
-    const hrs = month ? committedInMonth(a, month) : a.allocated_hours;
-    if (hrs <= 0) continue;
-    const rec = byUser.get(a.user_id) ?? {};
-    rec[a.project_name] = (rec[a.project_name] ?? 0) + hrs;
-    byUser.set(a.user_id, rec);
+  for (const h of hours) {
+    if (month && h.entry_date.slice(0, 7) !== month) continue;
+    if (h.hours_logged <= 0) continue;
+    const rec = byUser.get(h.user_id) ?? {};
+    rec[h.project_name] = (rec[h.project_name] ?? 0) + h.hours_logged;
+    byUser.set(h.user_id, rec);
   }
   return people.map((p) => {
     const rec = byUser.get(p.user_id) ?? {};
