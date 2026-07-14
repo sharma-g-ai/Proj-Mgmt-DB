@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { DataTable, type ColumnDef } from "@/components/report/DataTable";
-import { fmtPct, fmtHours, fmtDate, round1, monthsInRange, fmtMonthLabel } from "@/lib/format";
+import { fmtPct, fmtHours, fmtDate, round1, committedInMonth, monthsInRange, fmtMonthLabel } from "@/lib/format";
 import type {
   ReportTeamRow,
   ReportHoursRow,
@@ -229,8 +229,9 @@ function TabButton({
 }
 
 // Finance tab — a month-scoped person × project logged-hours pivot (admin). The
-// month `<select>` recomputes each person's per-project logged hours (summing the
-// entries in that month) plus a Total.
+// month `<select>` recomputes each person's per-project logged hours from the raw
+// logged entries (each entry's range-total hours weekday-spread into the month)
+// plus a Total.
 const ALL_TIME = "all";
 function FinanceTab({
   people,
@@ -249,11 +250,11 @@ function FinanceTab({
 }) {
   const months = useMemo(() => {
     if (hours.length === 0) return [];
-    let min = hours[0].entry_date;
-    let max = hours[0].entry_date;
+    let min = hours[0].start_date;
+    let max = hours[0].end_date;
     for (const h of hours) {
-      if (h.entry_date < min) min = h.entry_date;
-      if (h.entry_date > max) max = h.entry_date;
+      if (h.start_date < min) min = h.start_date;
+      if (h.end_date > max) max = h.end_date;
     }
     return monthsInRange(min, max);
   }, [hours]);
@@ -303,7 +304,8 @@ function FinanceTab({
 }
 
 // Pivot logged-hours entries for a month (or all-time when month is null) into one
-// row per person: hours[project_name] (sum of that month's entries) and a Total.
+// row per person: hours[project_name] (each entry's range-total weekday-spread into
+// the month, summed) and a Total.
 function buildFinanceRows(
   people: FinancePerson[],
   hours: FinanceHours[],
@@ -311,10 +313,12 @@ function buildFinanceRows(
 ): FinanceRow[] {
   const byUser = new Map<string, Record<string, number>>();
   for (const h of hours) {
-    if (month && h.entry_date.slice(0, 7) !== month) continue;
-    if (h.hours_logged <= 0) continue;
+    const hrs = month
+      ? committedInMonth({ allocated_hours: h.hours_logged, start_date: h.start_date, end_date: h.end_date }, month)
+      : h.hours_logged;
+    if (hrs <= 0) continue;
     const rec = byUser.get(h.user_id) ?? {};
-    rec[h.project_name] = (rec[h.project_name] ?? 0) + h.hours_logged;
+    rec[h.project_name] = (rec[h.project_name] ?? 0) + hrs;
     byUser.set(h.user_id, rec);
   }
   return people.map((p) => {
@@ -367,7 +371,8 @@ const projectColumns: ColumnDef<ReportProjectRow>[] = [
 const hoursColumns: ColumnDef<ReportHoursRow>[] = [
   { key: "project_name", label: "Project", filter: "text", sortValue: (r) => r.project_name, display: (r) => r.project_name, filterText: (r) => r.project_name },
   { key: "person", label: "Person", filter: "text", sortValue: (r) => r.person, display: (r) => r.person, filterText: (r) => r.person },
-  { key: "entry_date", label: "Date", filter: "text", sortValue: (r) => r.entry_date, display: (r) => fmtDate(r.entry_date), filterText: (r) => fmtDate(r.entry_date) },
+  { key: "start_date", label: "Start Date", filter: "text", sortValue: (r) => r.start_date, display: (r) => fmtDate(r.start_date), filterText: (r) => fmtDate(r.start_date) },
+  { key: "end_date", label: "End Date", filter: "text", sortValue: (r) => r.end_date, display: (r) => fmtDate(r.end_date), filterText: (r) => fmtDate(r.end_date) },
   { key: "hours_logged", label: "Logged Hours", align: "right", filter: "text", sortValue: (r) => numSort(r.hours_logged), display: (r) => fmtHours(r.hours_logged), filterText: (r) => fmtHours(r.hours_logged) },
   { key: "source", label: "Source", filter: "select", sortValue: (r) => r.source, display: (r) => r.source, filterText: (r) => r.source },
 ];

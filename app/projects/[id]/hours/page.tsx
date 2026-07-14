@@ -22,9 +22,9 @@ export default async function ProjectHoursPage({ params }: { params: { id: strin
       .eq("project_id", params.id),
     supabase
       .from("hours_log_entry")
-      .select("entry_id, user_id, hours_logged, entry_date, source, users(full_name, email)")
+      .select("entry_id, user_id, hours_logged, start_date, end_date, source, users(full_name, email)")
       .eq("project_id", params.id)
-      .order("entry_date", { ascending: false }),
+      .order("start_date", { ascending: false }),
   ]);
 
   if (!project) notFound();

@@ -77,7 +77,8 @@ export type HoursEntryRow = {
   entry_id: string;
   user_id: string;
   hours_logged: number;
-  entry_date: string;
+  start_date: string;
+  end_date: string;
   source: HoursSource;
   users: { full_name: string; email: string } | null;
 };

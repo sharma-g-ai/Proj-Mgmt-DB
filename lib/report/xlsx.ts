@@ -73,7 +73,8 @@ export async function buildXlsx(
     [
       { header: "Project", key: "project_name", width: 24 },
       { header: "Person", key: "person", width: 20 },
-      { header: "Date", key: "entry_date", width: 12 },
+      { header: "Start Date", key: "start_date", width: 12 },
+      { header: "End Date", key: "end_date", width: 12 },
       { header: "Logged Hours", key: "hours_logged", width: 13 },
       { header: "Source", key: "source", width: 10 },
     ],

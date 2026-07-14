@@ -3,7 +3,7 @@
 import { useFormState } from "react-dom";
 import { logHours, updateHours, deleteHours } from "@/app/projects/actions";
 import { ConfirmButton } from "@/components/ConfirmButton";
-import { fmtDate, round1 } from "@/lib/format";
+import { round1, businessDays, isWeekend } from "@/lib/format";
 import type { HoursEntryRow } from "@/lib/types";
 
 type TeamOption = { user_id: string; name: string };
@@ -33,7 +33,8 @@ export function HoursSection({
           <thead className="bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500">
             <tr>
               <th className="px-4 py-2 font-medium">Person</th>
-              <th className="px-4 py-2 font-medium">Date</th>
+              <th className="px-4 py-2 font-medium">Start Date</th>
+              <th className="px-4 py-2 font-medium">End Date</th>
               <th className="px-4 py-2 font-medium">Hours</th>
               <th className="px-4 py-2 font-medium">Source</th>
               {!readOnly && <th className="px-4 py-2" />}
@@ -42,7 +43,7 @@ export function HoursSection({
           <tbody className="divide-y divide-gray-100">
             {entries.length === 0 && (
               <tr>
-                <td colSpan={5} className="px-4 py-6 text-center text-gray-500">
+                <td colSpan={6} className="px-4 py-6 text-center text-gray-500">
                   No hours logged yet.
                 </td>
               </tr>
@@ -66,8 +67,13 @@ export function HoursSection({
             </select>
           </label>
           <label className="flex flex-col gap-1 text-xs text-gray-500">
-            Date
-            <input type="date" name="entry_date" required defaultValue={today}
+            Start Date
+            <input type="date" name="start_date" required defaultValue={today}
+              className="rounded-md border border-gray-300 px-2 py-1.5 text-sm" />
+          </label>
+          <label className="flex flex-col gap-1 text-xs text-gray-500">
+            End Date
+            <input type="date" name="end_date" required defaultValue={today}
               className="rounded-md border border-gray-300 px-2 py-1.5 text-sm" />
           </label>
           <label className="flex flex-col gap-1 text-xs text-gray-500">
@@ -104,6 +110,9 @@ function HoursRow({
     undefined
   );
   const name = entry.users?.full_name ?? "Unknown (pending user)";
+  const days = businessDays(entry.start_date, entry.end_date);
+  const perDay = days > 0 ? round1(entry.hours_logged / days) : 0;
+  const weekendWarn = isWeekend(entry.start_date) || isWeekend(entry.end_date);
   // JIRA rows would be read-only once sync exists (Spec 05 §4.3); none at v1.
   const rowReadOnly = readOnly || entry.source === "JIRA";
 
@@ -111,8 +120,12 @@ function HoursRow({
     return (
       <tr>
         <td className="px-4 py-3">{name}</td>
-        <td className="px-4 py-3 text-gray-600">{fmtDate(entry.entry_date)}</td>
-        <td className="px-4 py-3 text-gray-600">{round1(entry.hours_logged)}</td>
+        <td className="px-4 py-3 text-gray-600">{entry.start_date}</td>
+        <td className="px-4 py-3 text-gray-600">{entry.end_date}</td>
+        <td className="px-4 py-3 text-gray-600">
+          {round1(entry.hours_logged)}{" "}
+          <span className="text-xs text-gray-400">({perDay}/d, {days}d)</span>
+        </td>
         <td className="px-4 py-3 text-gray-500">{entry.source}</td>
         {!readOnly && <td className="px-4 py-3 text-xs text-gray-400">read-only</td>}
       </tr>
@@ -124,14 +137,21 @@ function HoursRow({
       <td className="px-4 py-3">{name}</td>
       <td className="px-4 py-2">
         <form id={`h-${entry.entry_id}`} action={formAction} className="contents">
-          <input type="date" name="entry_date" defaultValue={entry.entry_date}
+          <input type="date" name="start_date" defaultValue={entry.start_date}
             className="rounded-md border border-gray-300 px-2 py-1 text-sm" />
         </form>
+      </td>
+      <td className="px-4 py-2">
+        <input form={`h-${entry.entry_id}`} type="date" name="end_date" defaultValue={entry.end_date}
+          className="rounded-md border border-gray-300 px-2 py-1 text-sm" />
       </td>
       <td className="px-4 py-2">
         <input form={`h-${entry.entry_id}`} type="number" name="hours_logged"
           defaultValue={round1(entry.hours_logged)} min="0.1" step="0.1"
           className="w-24 rounded-md border border-gray-300 px-2 py-1 text-sm" />
+        <div className="mt-1 text-xs text-gray-400">
+          {perDay}/d ({days}d){weekendWarn && <span className="ml-1 text-amber-600">weekend date</span>}
+        </div>
       </td>
       <td className="px-4 py-3 text-gray-500">{entry.source}</td>
       <td className="px-4 py-2">

@@ -17,7 +17,7 @@ export function AppHeader({ profile }: { profile: Profile }) {
             <img src="/amzur-logo.jpg" alt="Amzur" className="h-7 w-auto" />
           </Link>
           <nav className="flex items-center gap-4 text-sm">
-            <NavLink href="/dashboard" pathname={pathname}>PM Dashboard</NavLink>
+            <NavLink href="/dashboard" pathname={pathname}>Leadership Dashboard</NavLink>
             <NavLink href="/projects" pathname={pathname}>Projects</NavLink>
             <NavLink href="/reports" pathname={pathname}>Reports</NavLink>
             {profile.role === "Admin" && (

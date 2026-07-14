@@ -66,34 +66,36 @@ Managed user profile table — no external directory sync at v1. **Implemented a
 
 ### 2.3 `ProjectTeamMember` (join entity — Team + Allocation)
 
-Represents a person's assignment and weekly allocation to a project.
+Represents a person's assignment and man-hours allocation to a project over a date range.
 
 | Field | Type | Constraints |
 |---|---|---|
 | `assignment_id` | UUID / PK | Auto-generated |
 | `project_id` | FK → `Project` | Required |
 | `user_id` | FK → `User` | Required |
-| `allocation_pct` | Decimal (0–100) | Required. % of that person's `weekly_capacity_hrs` allocated to this project |
-| `week_start_date` | Date | Required. Identifies which week this allocation row applies to (enables weekly detail rolling up to a total) |
+| `start_date` / `end_date` | Date | Required. The date range this allocation covers (`end_date >= start_date`) |
+| `allocated_hours` | Decimal (≥ 0) | Required. Total man-hours allocated to this project across the range (spread evenly across the range's weekdays for weekly/monthly views) |
 | `created_at` / `updated_at` | Timestamp | System-managed |
 
 **Constraints:**
-- Unique on (`project_id`, `user_id`, `week_start_date`) — one allocation row per person per project per week.
-- Cross-project validation (business rule, not DB constraint): a person's summed `allocation_pct` across all active projects for a given `week_start_date` **must not exceed 100%**. This is a **hard block** — the save is rejected (not just a warning) if it would push the person over 100% for that week. Implementable as a Postgres trigger/constraint function that runs on insert/update of `ProjectTeamMember`.
+- `end_date >= start_date`.
+- Over-allocation is a soft signal computed on read (not a save-time hard block): a person's summed committed hours across all active projects for a given week is compared against their weekly capacity to flag over-allocation, but saving is never blocked.
 
-**Rollup:** Total allocation for a project = average or sum of weekly `allocation_pct` rows across the project's active date range (formula detail belongs in the Calculation Spec).
+**Rollup:** Total allocation for a project = sum of `allocated_hours` across its `ProjectTeamMember` rows (formula detail belongs in the Calculation Spec).
 
 ---
 
 ### 2.4 `HoursLogEntry` (manual completed-hours entry)
+
+Logged like an allocation — a date range plus a total, rather than one row per day.
 
 | Field | Type | Constraints |
 |---|---|---|
 | `entry_id` | UUID / PK | Auto-generated |
 | `project_id` | FK → `Project` | Required |
 | `user_id` | FK → `User` | Required — restricted to users who are formal `ProjectTeamMember`s on that project |
-| `hours_logged` | Decimal | Required, > 0 |
-| `entry_date` | Date | Required — date the hours apply to |
+| `start_date` / `end_date` | Date | Required. The date range the hours apply to (`end_date >= start_date`) |
+| `hours_logged` | Decimal | Required, > 0 — the total for the whole `[start_date, end_date]` range (not a per-day rate) |
 | `source` | Enum | `Manual` \| `JIRA` — Required. Defaults to `Manual` at v1; `JIRA` reserved for future sync (see §7) |
 | `created_at` | Timestamp | System-managed |
 

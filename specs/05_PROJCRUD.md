@@ -53,8 +53,8 @@ Tabs or sections:
 - **Hard-block enforcement**: on save, if a person's total allocation across all their projects for that week would exceed 100%, save is rejected with an inline error showing the conflicting total (per Spec 01 §2.3, Spec 03 §4.2).
 
 ### 4.3 Hours Log
-- Table of `HoursLogEntry` rows: Person, Date, Hours Logged, Source (Manual/JIRA — JIRA rows read-only once sync exists, not applicable at v1).
-- "+ Log Hours" — person picker is **restricted to that project's `ProjectTeamMember`s only** (not any active user org-wide), Date, Hours.
+- Table of `HoursLogEntry` rows: Person, Start Date, End Date, Hours Logged (total for the range), Source (Manual/JIRA — JIRA rows read-only once sync exists, not applicable at v1).
+- "+ Log Hours" — person picker is **restricted to that project's `ProjectTeamMember`s only** (not any active user org-wide), Start Date, End Date, Hours. Same weekday-only + end-date-on-or-after-start-date rule as Team & Allocation (Spec 01 §2.3).
 - Edit/delete existing manual entries — fully open-ended, no age-based locking (no restriction beyond project-edit permission, no separate approval workflow at v1).
 
 ### 4.4 Archive

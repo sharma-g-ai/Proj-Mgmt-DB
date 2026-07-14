@@ -12,7 +12,8 @@ export type ReportTeamRow = {
 export type ReportHoursRow = {
   project_name: string;
   person: string;
-  entry_date: string;
+  start_date: string;
+  end_date: string;
   hours_logged: number;
   source: string;
 };
@@ -46,8 +47,9 @@ export type FinancePerson = {
 export type FinanceHours = {
   user_id: string;
   project_name: string;
-  hours_logged: number;
-  entry_date: string;
+  hours_logged: number; // total for the [start_date, end_date] range
+  start_date: string;
+  end_date: string;
 };
 
 export type ReportData = {

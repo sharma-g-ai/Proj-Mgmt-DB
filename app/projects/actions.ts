@@ -22,6 +22,8 @@ function friendlyError(message: string): string {
     return "Planned End Date must be on or after the Start Date.";
   if (m.includes("ptm_end_after_start"))
     return "Allocation end date must be on or after its start date.";
+  if (m.includes("hle_end_after_start"))
+    return "Hours entry end date must be on or after its start date.";
   if (m.includes("project_stakeholder_values"))
     return "Stakeholder must be Internal or External.";
   if (m.includes("estimated_effort") ) return "Estimated Effort Hrs must be zero or greater.";
@@ -215,15 +217,19 @@ export async function logHours(
   form: FormData
 ): Promise<ActionState> {
   const supabase = createClient();
+  const start_date = str(form, "start_date");
+  const end_date = str(form, "end_date");
   const payload = {
     project_id: projectId,
     user_id: str(form, "user_id"),
     hours_logged: Number(str(form, "hours_logged")),
-    entry_date: str(form, "entry_date"),
+    start_date,
+    end_date,
     source: "Manual" as const,
   };
   if (!payload.user_id) return { error: "Select a person." };
-  if (!payload.entry_date) return { error: "Date is required." };
+  const dateError = weekdayDateError(start_date, end_date);
+  if (dateError) return { error: dateError };
   if (!payload.hours_logged || payload.hours_logged <= 0)
     return { error: "Hours must be greater than 0." };
 
@@ -242,10 +248,15 @@ export async function updateHours(
   form: FormData
 ): Promise<ActionState> {
   const supabase = createClient();
+  const start_date = str(form, "start_date");
+  const end_date = str(form, "end_date");
   const payload = {
     hours_logged: Number(str(form, "hours_logged")),
-    entry_date: str(form, "entry_date"),
+    start_date,
+    end_date,
   };
+  const dateError = weekdayDateError(start_date, end_date);
+  if (dateError) return { error: dateError };
   if (!payload.hours_logged || payload.hours_logged <= 0)
     return { error: "Hours must be greater than 0." };
 

@@ -120,8 +120,13 @@ export function ProjectRow({
                   </select>
                 </label>
                 <label className="flex flex-col gap-1 text-xs text-gray-500">
-                  Date
-                  <input type="date" name="entry_date" required defaultValue={today}
+                  Start Date
+                  <input type="date" name="start_date" required defaultValue={today}
+                    className="rounded-md border border-gray-300 px-2 py-1.5 text-sm" />
+                </label>
+                <label className="flex flex-col gap-1 text-xs text-gray-500">
+                  End Date
+                  <input type="date" name="end_date" required defaultValue={today}
                     className="rounded-md border border-gray-300 px-2 py-1.5 text-sm" />
                 </label>
                 <label className="flex flex-col gap-1 text-xs text-gray-500">
