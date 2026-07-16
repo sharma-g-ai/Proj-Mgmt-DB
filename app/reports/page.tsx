@@ -31,6 +31,7 @@ export default async function ReportsPage() {
           {isAdmin ? " all projects." : " the projects you lead."}
         </p>
         <ReportWorkbook
+          projects={data.projects}
           projectRows={data.projectRows}
           team={data.team}
           hours={data.hours}

@@ -20,18 +20,15 @@ export function UserForm({
   action,
   initial,
   designations,
-  variant = "user",
 }: {
   mode: "create" | "edit";
   action: (prev: ActionState, form: FormData) => Promise<ActionState>;
   initial?: Initial;
   designations: LookupOption[];
-  variant?: "user" | "resource";
 }) {
   const [state, formAction] = useFormState(action, undefined);
   const [role, setRole] = useState(initial?.role ?? "");
   const [active, setActive] = useState(initial?.is_active ?? false);
-  const isResource = variant === "resource";
   const activateNeedsRole = active && !role;
 
   return (
@@ -50,18 +47,16 @@ export function UserForm({
       </Field>
 
       <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-        {!isResource && (
-          <Field label="Access level" required={active}>
-            <select name="role" value={role} onChange={(e) => setRole(e.target.value)} className="input">
-              <option value="">— None (no access)</option>
-              <option value="Manager-Lead">Manager-Lead</option>
-              <option value="Admin">Admin</option>
-            </select>
-          </Field>
-        )}
+        <Field label="Access level" required={active}>
+          <select name="role" value={role} onChange={(e) => setRole(e.target.value)} className="input">
+            <option value="">— None (no access)</option>
+            <option value="Manager-Lead">Manager-Lead</option>
+            <option value="Admin">Admin</option>
+          </select>
+        </Field>
 
-        <Field label="Employee ID" required={isResource}>
-          <input name="employee_id" required={isResource} defaultValue={initial?.employee_id ?? ""}
+        <Field label="Employee ID">
+          <input name="employee_id" defaultValue={initial?.employee_id ?? ""}
             className="input" placeholder="AMZ/IND/000" />
         </Field>
 
@@ -80,28 +75,18 @@ export function UserForm({
         </Field>
       </div>
 
-      {!isResource && (
-        <>
-          <label className="flex items-center gap-2 text-sm text-gray-700">
-            <input type="checkbox" name="is_active" checked={active} onChange={(e) => setActive(e.target.checked)} />
-            Active (can sign in and access data)
-          </label>
-          {activateNeedsRole && (
-            <p className="-mt-3 text-xs text-red-600">Assign an access level to activate this user.</p>
-          )}
-        </>
-      )}
-      {isResource && (
-        <p className="text-xs text-gray-500">
-          Resources are allocatable to projects but have no login. Assign access later by editing
-          the user.
-        </p>
+      <label className="flex items-center gap-2 text-sm text-gray-700">
+        <input type="checkbox" name="is_active" checked={active} onChange={(e) => setActive(e.target.checked)} />
+        Active (can sign in and access data)
+      </label>
+      {activateNeedsRole && (
+        <p className="-mt-3 text-xs text-red-600">Assign an access level to activate this user.</p>
       )}
 
       <div className="flex items-center gap-3 pt-2">
         <SubmitButton
           disabled={activateNeedsRole}
-          label={mode === "create" ? (isResource ? "Add Resource" : "Create User") : "Save Changes"}
+          label={mode === "create" ? "Create User" : "Save Changes"}
         />
         <Link href="/users" className="text-sm text-gray-500 hover:text-gray-700">
           Cancel

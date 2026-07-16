@@ -2,7 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { DataTable, type ColumnDef } from "@/components/report/DataTable";
+import { AllocationTab } from "@/components/report/AllocationTab";
 import { fmtPct, fmtHours, fmtDate, round1, committedInMonth, monthsInRange, fmtMonthLabel } from "@/lib/format";
+import type { ProjectMetrics } from "@/lib/types";
 import type {
   ReportTeamRow,
   ReportHoursRow,
@@ -12,11 +14,12 @@ import type {
   FinanceHours,
 } from "@/lib/report/types";
 
-type Tab = "projects" | "hours" | "finance";
+type Tab = "projects" | "hours" | "allocation" | "finance";
 
 // Interactive, Excel-like report. Loads the full RLS-scoped dataset once, filters
 // and sorts client-side, and exports exactly the rows currently shown (Spec 08).
 export function ReportWorkbook({
+  projects,
   projectRows,
   team,
   hours,
@@ -26,8 +29,9 @@ export function ReportWorkbook({
   scopeLabel,
   isAdmin,
 }: {
+  projects: ProjectMetrics[]; // feeds the Allocation tab (one row per project)
   projectRows: ReportProjectRow[];
-  team: ReportTeamRow[]; // not shown as a tab; forwarded to the export for PDF rosters
+  team: ReportTeamRow[]; // forwarded to the export for PDF rosters; also feeds the Allocation tab
   hours: ReportHoursRow[];
   financePeople: FinancePerson[]; // admin-only
   financeHours: FinanceHours[]; // admin-only; logged entries pivoted per month on the client
@@ -136,6 +140,9 @@ export function ReportWorkbook({
           <TabButton active={tab === "hours"} onClick={() => setTab("hours")} dot="bg-amber-500">
             Logged Hours
           </TabButton>
+          <TabButton active={tab === "allocation"} onClick={() => setTab("allocation")} dot="bg-sky-500">
+            Allocation
+          </TabButton>
           {isAdmin && (
             <TabButton active={tab === "finance"} onClick={() => setTab("finance")} dot="bg-emerald-500">
               Finance
@@ -186,6 +193,9 @@ export function ReportWorkbook({
           onVisibleColumnsChange={onHoursCols}
           emptyMessage="No hours logged."
         />
+      </div>
+      <div className={tab === "allocation" ? "" : "hidden"}>
+        <AllocationTab projects={projects} team={team} />
       </div>
       {isAdmin && (
         <div className={tab === "finance" ? "" : "hidden"}>

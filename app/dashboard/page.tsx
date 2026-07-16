@@ -4,8 +4,8 @@ import { createClient } from "@/lib/supabase/server";
 import { AppHeader } from "@/components/AppHeader";
 import { SummaryCards } from "@/components/dashboard/SummaryCards";
 import { GlanceCards } from "@/components/dashboard/GlanceCards";
+import { ManagerSummary } from "@/components/dashboard/ManagerSummary";
 import { AllocationHeatmap } from "@/components/dashboard/AllocationHeatmap";
-import { ProjectTimeline } from "@/components/dashboard/ProjectTimeline";
 import { mondayOf } from "@/lib/format";
 import type { ProjectMetrics, AllocationRow } from "@/lib/types";
 
@@ -15,6 +15,7 @@ export default async function DashboardPage({
   searchParams: { week?: string };
 }) {
   const { profile } = await requireActiveUser();
+  const isAdmin = profile.role === "Admin";
   const supabase = createClient();
   const selectedWeek = searchParams.week ?? mondayOf(new Date());
 
@@ -81,15 +82,13 @@ export default async function DashboardPage({
         ) : (
           <>
             <SummaryCards projects={projects} />
-            <GlanceCards projects={projects} />
+            {isAdmin ? <ManagerSummary projects={projects} /> : <GlanceCards projects={projects} />}
             <AllocationHeatmap
-              projects={projects}
               allocations={allocations}
               selectedWeek={selectedWeek}
               committedByUser={committedByUser}
               capacityByUser={capacityByUser}
             />
-            <ProjectTimeline projects={projects} allocations={allocations} />
           </>
         )}
       </main>

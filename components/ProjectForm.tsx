@@ -11,6 +11,7 @@ type Initial = {
   stakeholder?: string;
   stakeholder_description?: string | null;
   description?: string | null;
+  jira_url?: string | null;
   project_type_id?: string;
   priority?: string;
   status_id?: string;
@@ -80,6 +81,11 @@ export function ProjectForm({
       <Field label="Project Description">
         <textarea name="description" defaultValue={initial?.description ?? ""} rows={3}
           className="input" placeholder="What this project is about" />
+      </Field>
+
+      <Field label="JIRA Project Link">
+        <input type="url" name="jira_url" defaultValue={initial?.jira_url ?? ""}
+          className="input" placeholder="https://yourorg.atlassian.net/browse/PROJ-123" />
       </Field>
 
       <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">

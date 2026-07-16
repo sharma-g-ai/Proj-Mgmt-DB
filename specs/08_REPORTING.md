@@ -24,7 +24,7 @@ No date-range filter at v1 (live snapshot only, not historical point-in-time —
 
 ### 3.1 PDF Report
 - **Cover/header**: report title, generated-by user, generated-at timestamp, scope description (e.g. "All Projects — Admin View").
-- **Portfolio Summary section**: same summary cards as Dashboard §2.1 (counts by Status/Priority, average % Completion, count of OVER projects), plus the Timeline view (Spec 07 §2.4) rendered as a static chart image.
+- **Portfolio Summary section**: same summary cards as Dashboard §2.1 (counts by Status/Priority, average % Completion, count of OVER projects), plus the Allocation Timeline (Spec 07 §2.4 — now an on-screen Reports tab) rendered as a static chart image.
 - **Per-Project Detail section** (one block per project in scope): all core fields (Spec 01 §2.2), calculated fields (Allocation %, % Completion with OVER badge, Pending Hrs), and team roster with individual allocation.
 - Charts: status distribution (pie/bar), allocation by team member (bar) — rendered as static images in the PDF.
 

@@ -61,6 +61,8 @@ export default async function EditProjectPage({ params }: { params: { id: string
           initial={{
             project_name: project.project_name,
             stakeholder: project.stakeholder,
+            stakeholder_description: project.stakeholder_description,
+            description: project.description,
             project_type_id: project.project_type_id,
             priority: project.priority,
             status_id: project.status_id,
@@ -69,6 +71,7 @@ export default async function EditProjectPage({ params }: { params: { id: string
             planned_end_date: project.planned_end_date,
             estimated_effort_hrs: project.estimated_effort_hrs,
             status_detail: project.status_detail,
+            jira_url: project.jira_url,
           }}
           cancelHref={`/projects/${params.id}`}
         />

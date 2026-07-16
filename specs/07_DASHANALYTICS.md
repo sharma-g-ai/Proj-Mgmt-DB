@@ -21,19 +21,20 @@ The Dashboard is a distinct, lightweight landing screen — separate from the fu
 - Average % Completion across active (non-archived) visible projects.
 - Count of projects with an "OVER" badge (completion >100%) — surfaced prominently since v1 has no dedicated risk-flagging system (per Spec 02 §3).
 
-### 2.2 Recent/At-a-Glance Project Cards
-- A compact card list of the user's visible projects (not the full sortable/filterable table — that lives on the Project List screen), showing Name, Status, % Completion, and a link into the Project Detail screen.
+### 2.2 Recent/At-a-Glance Project Cards (Manager-Lead) / Manager Summary (Admin)
+- **Manager-Lead**: a compact card list of the user's own visible projects (not the full sortable/filterable table — that lives on the Project List screen), showing Name, Status, % Completion, and a link into the Project Detail screen.
+- **Admin**: since Admin's project list is org-wide (a card-per-project view doesn't scale/summarize well), this slot instead shows a **Manager/Lead → Project Count** table — how many projects each Manager/Lead currently owns, at a glance. A Manager/Lead's own equivalent would be a trivial one-row view (they only ever see themselves as lead), so they keep the card list instead.
 
-### 2.3 Allocation Heatmap
-- Grid: Team Members (rows) × Projects (columns, or vice versa), cell = current-week Allocation % for that person on that project.
-- Project axis is scoped to the visible project set (Admin: all; Manager-Lead: own projects only).
-- **Person totals are NOT silo'd**: each team member's row also shows their **total allocation across ALL their projects org-wide**, including projects the viewing Manager-Lead can't otherwise see or open. This is an intentional exception to the strict-silo policy (Spec 03) — a Manager-Lead can see that someone is, say, at 120% total load, without being able to see which other project is contributing to it. This surfaces over-allocation risk without leaking other projects' details.
+### 2.3 Resource Utilization Table
+- Grid: Team Members (rows) × **Total Projects** (distinct projects the person is committed to this week, within the visible project set) × **Load (all)** (org-wide committed hours vs. weekly capacity, as a man-hours delta).
+- Row highlighting: over-capacity (red tint) or under 80% of capacity (amber tint), based on the Load (all) column.
+- **Load (all) is NOT silo'd**: it reflects the person's committed hours across ALL their projects org-wide, including projects the viewing Manager-Lead can't otherwise see or open. This is an intentional exception to the strict-silo policy (Spec 03) — a Manager-Lead can see that someone is, say, over capacity, without being able to see which other project is contributing to it. This surfaces over-allocation risk without leaking other projects' details.
 
-### 2.4 Timeline View
+### 2.4 Allocation Timeline (moved to Reports)
 - Week-by-week granularity: each project renders as a horizontal row spanning Start Date → Planned End Date, subdivided into weekly segments.
-- Each weekly segment reflects that week's Allocation % (e.g. shaded intensity or a small label) so a PM can see staffing changes over time, not just a static bar.
-- % Completion progress marker overlaid on the same timeline.
-- Visually distinguishes "OVER" projects (badge/color per Spec 02 §8.3 resolution).
+- Each weekly segment is colored by **that project's own assigned color** (deterministic per project, stable across reloads) when staffed that week, faint when in-range-but-unstaffed, and blank outside the project's date range — a legend maps each project to its color. This replaces the earlier heat-intensity-by-allocation-volume shading.
+- % Completion progress marker (with "OVER" badge, Spec 02 §8.3) is shown alongside each project's row label.
+- **Location**: this view lives in the Reports screen (Spec 08) as an "Allocation" tab, alongside Projects and Logged Hours — not on the Dashboard. Visible to both Admin (all projects) and Manager-Lead (own projects only, same RLS scoping as the rest of Reports).
 
 ---
 
@@ -54,13 +55,15 @@ The Dashboard is a distinct, lightweight landing screen — separate from the fu
 |---|---|---|
 | Dashboard scope | All projects | Own projects only (strict silo, per Spec 03) |
 | Summary cards | Org-wide | Own-projects-only |
-| Allocation heatmap | Org-wide | Limited to people staffed on their own projects |
-| Filter by Manager/Lead | ✅ | N/A (already silo'd to self) |
+| At-a-glance slot (§2.2) | Manager/Lead → Project Count table | Per-project cards |
+| Resource utilization table | Org-wide | Limited to people staffed on their own projects |
+| Allocation timeline (§2.4, now in Reports) | All projects | Own projects only |
 
 ---
 
 ## 6. Resolved Decisions (formerly open questions)
 
-1. **Heatmap cross-project totals**: a person's row in the heatmap shows their total allocation across ALL projects org-wide, even ones outside the viewing Manager-Lead's silo — an intentional exception to strict silo, to surface over-allocation risk without exposing other projects' details (see §2.3).
-2. **Dashboard vs. Project List**: confirmed as two separate screens — a lightweight Dashboard (summary cards, at-a-glance project cards, heatmap, timeline) and a full-featured Project List (Spec 05 §2) for management/filtering.
-3. **Timeline view granularity**: confirmed week-by-week — the timeline shows weekly allocation changes over the project's duration, not just a static Start→End bar (see §2.4).
+1. **Resource utilization "Load (all)" cross-project totals**: a person's row shows their total committed hours across ALL projects org-wide, even ones outside the viewing Manager-Lead's silo — an intentional exception to strict silo, to surface over-allocation risk without exposing other projects' details (see §2.3).
+2. **Dashboard vs. Project List**: confirmed as two separate screens — a lightweight Dashboard (summary cards, at-a-glance slot, resource utilization table) and a full-featured Project List (Spec 05 §2) for management/filtering. The Allocation Timeline moved into the Reports screen (see §2.4).
+3. **Timeline view granularity**: confirmed week-by-week — the timeline shows weekly staffing changes over the project's duration, not just a static Start→End bar (see §2.4).
+4. **Timeline coloring**: switched from heat-intensity (shaded by allocation volume) to a flat, deterministic per-project color — easier to scan "which project is this" at a glance across many projects, at the cost of not showing relative allocation volume per cell (see §2.4).

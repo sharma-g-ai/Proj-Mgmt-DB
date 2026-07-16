@@ -61,12 +61,8 @@ export default async function UsersPage({ searchParams }: { searchParams: Search
               Manage designations
             </Link>
             <Link href="/users/new"
-              className="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
-              + New User
-            </Link>
-            <Link href="/users/new?kind=resource"
               className="rounded-md bg-brand-600 px-3 py-2 text-sm font-medium text-white hover:bg-brand-700">
-              + Add Resource
+              + New User
             </Link>
           </div>
         </div>
