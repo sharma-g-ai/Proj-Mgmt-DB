@@ -12,6 +12,7 @@ type Initial = {
   stakeholder_description?: string | null;
   description?: string | null;
   jira_url?: string | null;
+  drive_url?: string | null;
   project_type_id?: string;
   priority?: string;
   status_id?: string;
@@ -86,6 +87,11 @@ export function ProjectForm({
       <Field label="JIRA Project Link">
         <input type="url" name="jira_url" defaultValue={initial?.jira_url ?? ""}
           className="input" placeholder="https://yourorg.atlassian.net/browse/PROJ-123" />
+      </Field>
+
+      <Field label="Google Drive Link">
+        <input type="url" name="drive_url" defaultValue={initial?.drive_url ?? ""}
+          className="input" placeholder="https://drive.google.com/drive/folders/..." />
       </Field>
 
       <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">

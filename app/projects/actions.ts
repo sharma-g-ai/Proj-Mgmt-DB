@@ -62,6 +62,7 @@ export async function createProject(
     stakeholder_description: str(form, "stakeholder_description") || null,
     description: str(form, "description") || null,
     jira_url: str(form, "jira_url") || null,
+    drive_url: str(form, "drive_url") || null,
     project_type_id: str(form, "project_type_id"),
     priority: str(form, "priority"),
     status_id: str(form, "status_id"),
@@ -103,6 +104,7 @@ export async function updateProject(
     stakeholder_description: str(form, "stakeholder_description") || null,
     description: str(form, "description") || null,
     jira_url: str(form, "jira_url") || null,
+    drive_url: str(form, "drive_url") || null,
     project_type_id: str(form, "project_type_id"),
     priority: str(form, "priority"),
     status_id: str(form, "status_id"),
@@ -176,28 +178,38 @@ export async function addTeamMember(
   return { ok: true };
 }
 
-export async function updateTeamMember(
-  projectId: string,
-  assignmentId: string,
-  _prev: ActionState,
-  form: FormData
-): Promise<ActionState> {
-  const supabase = createClient();
-  const start_date = str(form, "start_date");
-  const end_date = str(form, "end_date");
-  const allocated_hours = Number(str(form, "allocated_hours"));
-  const dateErr = weekdayDateError(start_date, end_date);
-  if (dateErr) return { error: dateErr };
-  if (!allocated_hours || allocated_hours <= 0) return { error: "Man-hours must be greater than 0." };
+// Batch-save every edited row from the Team & Allocation table in one action —
+// called directly (not via <form action>) from a client onClick, not FormData.
+export type TeamMemberEdit = {
+  assignment_id: string;
+  start_date: string;
+  end_date: string;
+  allocated_hours: number;
+};
 
-  const { error } = await supabase
-    .from("project_team_member")
-    .update({ allocated_hours, start_date, end_date })
-    .eq("assignment_id", assignmentId);
-  if (error) return { error: friendlyError(error.message) };
+export async function updateTeamMembers(
+  projectId: string,
+  updates: TeamMemberEdit[]
+): Promise<{ error?: string }> {
+  const supabase = createClient();
+
+  for (const u of updates) {
+    const dateErr = weekdayDateError(u.start_date, u.end_date);
+    if (dateErr) return { error: dateErr };
+    if (!u.allocated_hours || u.allocated_hours <= 0)
+      return { error: "Man-hours must be greater than 0." };
+  }
+
+  for (const u of updates) {
+    const { error } = await supabase
+      .from("project_team_member")
+      .update({ start_date: u.start_date, end_date: u.end_date, allocated_hours: u.allocated_hours })
+      .eq("assignment_id", u.assignment_id);
+    if (error) return { error: friendlyError(error.message) };
+  }
 
   revalidatePath(`/projects/${projectId}`);
-  return { ok: true };
+  return {};
 }
 
 export async function removeTeamMember(projectId: string, assignmentId: string): Promise<void> {

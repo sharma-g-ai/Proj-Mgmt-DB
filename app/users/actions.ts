@@ -41,7 +41,8 @@ export async function createUser(_prev: ActionState, form: FormData): Promise<Ac
   const email = str(form, "email").toLowerCase();
   const role = str(form, "role");
   const capacity = Number(str(form, "weekly_capacity_hrs"));
-  const is_active = form.get("is_active") === "on";
+  // Access level is the sole trigger for sign-in/data access — no separate toggle.
+  const is_active = !!role;
   const employee_id = str(form, "employee_id");
   const designation_id = str(form, "designation_id");
 
@@ -49,7 +50,6 @@ export async function createUser(_prev: ActionState, form: FormData): Promise<Ac
   if (!email) return { error: "Email is required." };
   if (!email.endsWith("@amzur.com")) return { error: "Email must be an @amzur.com address." };
   if (!capacity || capacity <= 0) return { error: "Weekly Capacity is required and must be > 0." };
-  if (is_active && !role) return { error: "Assign an access level to create an active user." };
 
   let admin;
   try {
@@ -90,7 +90,8 @@ export async function updateUser(
   const email = str(form, "email").toLowerCase();
   const role = str(form, "role");
   const capacity = Number(str(form, "weekly_capacity_hrs"));
-  const is_active = form.get("is_active") === "on";
+  // Access level is the sole trigger for sign-in/data access — no separate toggle.
+  const is_active = !!role;
   const employee_id = str(form, "employee_id");
   const designation_id = str(form, "designation_id");
 
@@ -98,7 +99,6 @@ export async function updateUser(
   if (!email) return { error: "Email is required." };
   if (!email.endsWith("@amzur.com")) return { error: "Email must be an @amzur.com address." };
   if (!capacity || capacity <= 0) return { error: "Weekly Capacity is required and must be > 0." };
-  if (is_active && !role) return { error: "Assign an access level to activate this user." };
 
   const supabase = createClient();
 

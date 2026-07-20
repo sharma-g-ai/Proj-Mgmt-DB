@@ -12,7 +12,10 @@ export type ColumnDef<T> = {
   key: string;
   label: string;
   align?: "left" | "right";
-  filter: "text" | "select";
+  // "date-after"/"date-before" render a native date input and filter using the
+  // column's sortValue (raw ISO date), keeping rows on/after or on/before it.
+  // "number-gt" renders a number input and keeps rows whose sortValue is greater.
+  filter: "text" | "select" | "date-after" | "date-before" | "number-gt";
   group?: boolean;
   sortValue: (row: T) => string | number;
   display: (row: T) => React.ReactNode;
@@ -79,6 +82,13 @@ export function DataTable<T>({
       if (col.filter === "text") {
         const needle = f.toLowerCase();
         out = out.filter((r) => col.filterText(r).toLowerCase().includes(needle));
+      } else if (col.filter === "date-after") {
+        out = out.filter((r) => String(col.sortValue(r)) >= f);
+      } else if (col.filter === "date-before") {
+        out = out.filter((r) => String(col.sortValue(r)) <= f);
+      } else if (col.filter === "number-gt") {
+        const n = Number(f);
+        out = out.filter((r) => Number(col.sortValue(r)) > n);
       } else {
         out = out.filter((r) => col.filterText(r) === f);
       }
@@ -236,6 +246,23 @@ export function DataTable<T>({
                         </option>
                       ))}
                     </select>
+                  ) : col.filter === "date-after" || col.filter === "date-before" ? (
+                    <input
+                      type="date"
+                      value={filters[col.key] ?? ""}
+                      onChange={(e) => setFilter(col.key, e.target.value)}
+                      title={col.filter === "date-after" ? "On or after" : "On or before"}
+                      className="w-full rounded border border-gray-300 bg-white px-1.5 py-1 text-xs font-normal text-gray-700"
+                    />
+                  ) : col.filter === "number-gt" ? (
+                    <input
+                      type="number"
+                      value={filters[col.key] ?? ""}
+                      onChange={(e) => setFilter(col.key, e.target.value)}
+                      placeholder="> …"
+                      title="Greater than"
+                      className="w-full rounded border border-gray-300 bg-white px-1.5 py-1 text-xs font-normal text-gray-700"
+                    />
                   ) : (
                     <input
                       type="text"

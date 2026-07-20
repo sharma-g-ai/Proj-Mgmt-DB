@@ -381,9 +381,9 @@ const projectColumns: ColumnDef<ReportProjectRow>[] = [
 const hoursColumns: ColumnDef<ReportHoursRow>[] = [
   { key: "project_name", label: "Project", filter: "text", sortValue: (r) => r.project_name, display: (r) => r.project_name, filterText: (r) => r.project_name },
   { key: "person", label: "Person", filter: "text", sortValue: (r) => r.person, display: (r) => r.person, filterText: (r) => r.person },
-  { key: "start_date", label: "Start Date", filter: "text", sortValue: (r) => r.start_date, display: (r) => fmtDate(r.start_date), filterText: (r) => fmtDate(r.start_date) },
-  { key: "end_date", label: "End Date", filter: "text", sortValue: (r) => r.end_date, display: (r) => fmtDate(r.end_date), filterText: (r) => fmtDate(r.end_date) },
-  { key: "hours_logged", label: "Logged Hours", align: "right", filter: "text", sortValue: (r) => numSort(r.hours_logged), display: (r) => fmtHours(r.hours_logged), filterText: (r) => fmtHours(r.hours_logged) },
+  { key: "start_date", label: "Start Date", filter: "date-after", sortValue: (r) => r.start_date, display: (r) => fmtDate(r.start_date), filterText: (r) => fmtDate(r.start_date) },
+  { key: "end_date", label: "End Date", filter: "date-before", sortValue: (r) => r.end_date, display: (r) => fmtDate(r.end_date), filterText: (r) => fmtDate(r.end_date) },
+  { key: "hours_logged", label: "Logged Hours", align: "right", filter: "number-gt", sortValue: (r) => numSort(r.hours_logged), display: (r) => fmtHours(r.hours_logged), filterText: (r) => fmtHours(r.hours_logged) },
   { key: "source", label: "Source", filter: "select", sortValue: (r) => r.source, display: (r) => r.source, filterText: (r) => r.source },
 ];
 

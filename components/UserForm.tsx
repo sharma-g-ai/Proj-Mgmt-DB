@@ -28,8 +28,6 @@ export function UserForm({
 }) {
   const [state, formAction] = useFormState(action, undefined);
   const [role, setRole] = useState(initial?.role ?? "");
-  const [active, setActive] = useState(initial?.is_active ?? false);
-  const activateNeedsRole = active && !role;
 
   return (
     <form action={formAction} className="space-y-5">
@@ -47,12 +45,15 @@ export function UserForm({
       </Field>
 
       <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-        <Field label="Access level" required={active}>
+        <Field label="Access level">
           <select name="role" value={role} onChange={(e) => setRole(e.target.value)} className="input">
             <option value="">— None (no access)</option>
             <option value="Manager-Lead">Manager-Lead</option>
             <option value="Admin">Admin</option>
           </select>
+          <span className="mt-1 block text-xs text-gray-500">
+            {role ? "Can sign in and access data." : "No login — allocatable to projects only."}
+          </span>
         </Field>
 
         <Field label="Employee ID">
@@ -75,19 +76,8 @@ export function UserForm({
         </Field>
       </div>
 
-      <label className="flex items-center gap-2 text-sm text-gray-700">
-        <input type="checkbox" name="is_active" checked={active} onChange={(e) => setActive(e.target.checked)} />
-        Active (can sign in and access data)
-      </label>
-      {activateNeedsRole && (
-        <p className="-mt-3 text-xs text-red-600">Assign an access level to activate this user.</p>
-      )}
-
       <div className="flex items-center gap-3 pt-2">
-        <SubmitButton
-          disabled={activateNeedsRole}
-          label={mode === "create" ? "Create User" : "Save Changes"}
-        />
+        <SubmitButton label={mode === "create" ? "Create User" : "Save Changes"} />
         <Link href="/users" className="text-sm text-gray-500 hover:text-gray-700">
           Cancel
         </Link>

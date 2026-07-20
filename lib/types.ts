@@ -21,6 +21,7 @@ export type ProjectMetrics = {
   stakeholder_description: string | null;
   description: string | null;
   jira_url: string | null;
+  drive_url: string | null;
   project_type_id: string;
   project_type_label: string | null;
   priority: Priority;
