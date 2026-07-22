@@ -1,8 +1,7 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
-import { saveTeamChanges, removeTeamMember } from "@/app/projects/actions";
-import { ConfirmButton } from "@/components/ConfirmButton";
+import { saveTeamChanges } from "@/app/projects/actions";
 import { ReasonModal } from "@/components/ReasonModal";
 import { isWeekend } from "@/lib/format";
 import type { NewMember, TeamMemberEdit, TeamMemberRow, UserOption } from "@/lib/types";
@@ -48,19 +47,36 @@ export function TeamSection({
   // save succeeds (revalidation brings them back as real `members` rows).
   const [drafts, setDrafts] = useState<Draft[]>([]);
 
+  // Existing rows marked for removal — cleared (undoable) locally until Save
+  // Changes actually deletes/stages them (Spec 10: removal is gated too).
+  const [pendingRemovals, setPendingRemovals] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    setPendingRemovals(new Set());
+  }, [members]);
+
   const [saving, startSaving] = useTransition();
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
   const [needsReason, setNeedsReason] = useState(false);
 
   const dirty = members.filter((m) => {
+    if (pendingRemovals.has(m.assignment_id)) return false;
     const e = edits[m.assignment_id];
     return e && (e.start_date !== m.start_date || e.end_date !== m.end_date || e.allocated_hours !== m.allocated_hours);
   });
-  const pendingCount = dirty.length + drafts.length;
+  const pendingCount = dirty.length + drafts.length + pendingRemovals.size;
 
   function setEdit(assignmentId: string, patch: Partial<Edit>) {
     setEdits((prev) => ({ ...prev, [assignmentId]: { ...prev[assignmentId], ...patch } }));
+  }
+
+  function toggleRemoval(assignmentId: string) {
+    setPendingRemovals((prev) => {
+      const next = new Set(prev);
+      if (next.has(assignmentId)) next.delete(assignmentId);
+      else next.add(assignmentId);
+      return next;
+    });
   }
 
   function addDraftRow() {
@@ -92,8 +108,9 @@ export function TeamSection({
       return;
     }
     const updates: TeamMemberEdit[] = dirty.map((m) => ({ assignment_id: m.assignment_id, ...edits[m.assignment_id] }));
+    const removes = Array.from(pendingRemovals);
     startSaving(async () => {
-      const res = await saveTeamChanges(projectId, adds, updates, reason);
+      const res = await saveTeamChanges(projectId, adds, updates, removes, reason);
       if (res.needsReason) {
         setNeedsReason(true);
         return;
@@ -102,6 +119,7 @@ export function TeamSection({
       if (res.error) setSaveError(res.error);
       else {
         setDrafts([]);
+        setPendingRemovals(new Set());
         if (res.message) setSaveMessage(res.message);
       }
     });
@@ -138,11 +156,12 @@ export function TeamSection({
             {members.map((m) => (
               <MemberRow
                 key={m.assignment_id}
-                projectId={projectId}
                 member={m}
                 edit={edits[m.assignment_id] ?? toEdit(m)}
                 onChange={(patch) => setEdit(m.assignment_id, patch)}
                 readOnly={readOnly}
+                markedForRemoval={pendingRemovals.has(m.assignment_id)}
+                onToggleRemoval={() => toggleRemoval(m.assignment_id)}
               />
             ))}
             {!readOnly &&
@@ -196,17 +215,19 @@ export function TeamSection({
 }
 
 function MemberRow({
-  projectId,
   member,
   edit,
   onChange,
   readOnly,
+  markedForRemoval,
+  onToggleRemoval,
 }: {
-  projectId: string;
   member: TeamMemberRow;
   edit: Edit;
   onChange: (patch: Partial<Edit>) => void;
   readOnly: boolean;
+  markedForRemoval: boolean;
+  onToggleRemoval: () => void;
 }) {
   const name = member.users?.full_name ?? "Unknown (pending user)";
   const weekendWarn = isWeekend(edit.start_date) || isWeekend(edit.end_date);
@@ -218,6 +239,23 @@ function MemberRow({
         <td className="px-4 py-3 text-gray-600">{member.start_date}</td>
         <td className="px-4 py-3 text-gray-600">{member.end_date}</td>
         <td className="px-4 py-3 text-gray-600">{member.allocated_hours}</td>
+      </tr>
+    );
+  }
+
+  if (markedForRemoval) {
+    return (
+      <tr className="bg-red-50/40 text-gray-400 line-through">
+        <td className="px-4 py-3">{name}</td>
+        <td className="px-4 py-3">{member.start_date}</td>
+        <td className="px-4 py-3">{member.end_date}</td>
+        <td className="px-4 py-3">{member.allocated_hours}</td>
+        <td className="px-4 py-2 no-underline">
+          <button type="button" onClick={onToggleRemoval}
+            className="rounded-md border border-gray-300 px-2 py-1 text-xs text-gray-700 hover:bg-white">
+            Undo
+          </button>
+        </td>
       </tr>
     );
   }
@@ -240,13 +278,10 @@ function MemberRow({
         {weekendWarn && <span className="ml-1 text-xs text-amber-600">weekend date</span>}
       </td>
       <td className="px-4 py-2">
-        <ConfirmButton
-          action={removeTeamMember.bind(null, projectId, member.assignment_id)}
-          message={`Remove ${name} from this project?`}
-          className="rounded-md border border-red-200 px-2 py-1 text-xs text-red-600 hover:bg-red-50"
-        >
+        <button type="button" onClick={onToggleRemoval}
+          className="rounded-md border border-red-200 px-2 py-1 text-xs text-red-600 hover:bg-red-50">
           Remove
-        </ConfirmButton>
+        </button>
       </td>
     </tr>
   );

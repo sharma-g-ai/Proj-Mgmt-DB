@@ -6,6 +6,7 @@ import { useFormState } from "react-dom";
 import { logHours, setArchived } from "@/app/projects/actions";
 import { ConfirmButton } from "@/components/ConfirmButton";
 import { OverBadge, StatusBadge } from "@/components/Badges";
+import { Toast } from "@/components/Toast";
 import { fmtPct } from "@/lib/format";
 
 type TeamOption = { user_id: string; name: string };
@@ -34,17 +35,22 @@ export function ProjectRow({
 }) {
   const readOnly = project.is_archived;
   const [open, setOpen] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
   const [state, formAction] = useFormState(logHours.bind(null, project.project_id), undefined);
   const today = new Date().toISOString().slice(0, 10);
   const colSpan = isAdmin ? 6 : 5;
 
   // Collapse once a log succeeds (the list revalidates and % Complete updates).
   useEffect(() => {
-    if (state?.ok) setOpen(false);
+    if (state?.ok) {
+      setOpen(false);
+      setToast("Hours logged successfully.");
+    }
   }, [state]);
 
   return (
     <>
+      {toast && <Toast message={toast} onDone={() => setToast(null)} />}
       <tr className={readOnly ? "bg-gray-50/60" : ""}>
         <td className="px-4 py-3">
           <Link href={`/projects/${project.project_id}`} className="font-medium text-gray-900 hover:underline">

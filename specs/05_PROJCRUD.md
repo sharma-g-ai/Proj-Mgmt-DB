@@ -45,19 +45,23 @@ Tabs or sections:
 - All core fields (editable inline or via "Edit" button, per permissions).
 - Calculated fields displayed: current-week Allocation %, rolled-up total Allocation %, % Completion (with OVER badge if applicable), Pending Hrs (and %) — all per Spec 02 formulas.
 - Contextual info: working days remaining until Planned End Date (calendar-adjusted per Spec 01 §4 / Spec 02 §5).
-- **Approval gate (Spec 10)**: a Manager-Lead's edit to Estimated Effort Hrs is staged for Admin approval rather than applied immediately (every other field still saves right away); Admin edits are never gated.
+- **Approval gate (Spec 10)**: a Manager-Lead's edit to Estimated Effort Hrs is staged for Admin approval rather than applied immediately (every other field still saves right away); Admin edits are never gated. Submitting a staged change redirects back to this page (rather than remaining on the Edit form) so the pending-approval banner is the unambiguous source of truth for what did/didn't apply.
+- Organizational entries (Spec 01 §2.2) don't show JIRA Project Link or Google Drive Link — irrelevant for a non-billable placeholder — on either this page or the Create/Edit form.
 
 ### 4.2 Team & Allocation
 - Table of `ProjectTeamMember` rows: Person, Week, Allocation %, Allocated Hours (calculated).
 - "+ Add row" stages a new team member locally (person, dates, hours); it isn't written until the
   batched "Save Changes (N)" action fires, alongside any edits to existing rows in the same click.
-- Edit/remove existing allocation rows (remove is immediate/ungated, not part of the batch).
+- Edit existing allocation rows inline. "Remove" marks a row for removal (struck-through, undoable
+  via "Undo") rather than deleting immediately — like adds and edits, it isn't applied until "Save
+  Changes (N)" fires, and it's part of the same reason/approval gate.
 - **Hard-block enforcement**: on save, if a person's total allocation across all their projects for that week would exceed 100%, save is rejected with an inline error showing the conflicting total (per Spec 01 §2.3, Spec 03 §4.2).
-- **Approval gate (Spec 10)**: a Manager-Lead's first round of allocations on an otherwise-unstaffed project applies immediately; any allocation add/edit after that — regardless of whether it stays within the Estimated Effort Hrs — is staged for Admin approval instead, and requires a stated reason. Admin edits are never gated.
+- **Approval gate (Spec 10)**: a Manager-Lead's first round of allocations on an otherwise-unstaffed project applies immediately; any allocation add/edit/remove after that — regardless of whether it stays within the Estimated Effort Hrs — is staged for Admin approval instead, and requires a stated reason. Admin edits are never gated.
 
 ### 4.3 Hours Log
 - Table of `HoursLogEntry` rows: Person, Start Date, End Date, Hours Logged (total for the range), Source (Manual/JIRA — JIRA rows read-only once sync exists, not applicable at v1).
 - "+ Log Hours" — person picker is **restricted to that project's `ProjectTeamMember`s only** (not any active user org-wide), Start Date, End Date, Hours. Same weekday-only + end-date-on-or-after-start-date rule as Team & Allocation (Spec 01 §2.3). **Exception — organizational entries** (Spec 01 §2.2): no roster restriction at all — the person picker lists every active user, and any active user (any Manager-Lead, not just a project's own team) may log hours there, since these projects have no leader or fixed roster.
+- On submit, a transient success toast confirms the entry was logged — shown here and on the Projects list's inline quick-add form (§2).
 - Edit/delete existing manual entries — fully open-ended, no age-based locking (no restriction beyond project-edit permission, no separate approval workflow at v1). **Exception — organizational entries**: editing/deleting an existing entry is Admin-only (Spec 03 §4.3 addendum) — any Manager-Lead can still add new entries.
 
 ### 4.4 Archive

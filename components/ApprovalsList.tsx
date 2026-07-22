@@ -24,23 +24,26 @@ export function ApprovalsList({ requests }: { requests: ChangeRequestRow[] }) {
 function ApprovalCard({ request }: { request: ChangeRequestRow }) {
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
-  const [rejecting, setRejecting] = useState(false);
+  // Both Approve and Reject reveal the same optional-note prompt before
+  // firing — a note is meaningful either way (Spec 10: approval note parity).
+  const [reviewing, setReviewing] = useState<"approve" | "reject" | null>(null);
   const [note, setNote] = useState("");
 
-  function approve() {
+  function openReview(kind: "approve" | "reject") {
     setError(null);
-    startTransition(async () => {
-      const res = await approveChangeRequest(request.request_id);
-      if (res.error) setError(res.error);
-    });
+    setNote("");
+    setReviewing(kind);
   }
 
-  function reject() {
+  function confirm() {
     setError(null);
     startTransition(async () => {
-      const res = await rejectChangeRequest(request.request_id, note);
+      const res =
+        reviewing === "approve"
+          ? await approveChangeRequest(request.request_id, note)
+          : await rejectChangeRequest(request.request_id, note);
       if (res.error) setError(res.error);
-      else setRejecting(false);
+      else setReviewing(null);
     });
   }
 
@@ -64,7 +67,7 @@ function ApprovalCard({ request }: { request: ChangeRequestRow }) {
         <div className="flex shrink-0 items-center gap-2">
           <button
             type="button"
-            onClick={approve}
+            onClick={() => openReview("approve")}
             disabled={pending}
             className="rounded-md bg-brand-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-50"
           >
@@ -72,7 +75,7 @@ function ApprovalCard({ request }: { request: ChangeRequestRow }) {
           </button>
           <button
             type="button"
-            onClick={() => setRejecting((r) => !r)}
+            onClick={() => openReview("reject")}
             disabled={pending}
             className="rounded-md border border-red-200 px-3 py-1.5 text-sm text-red-600 hover:bg-red-50 disabled:opacity-50"
           >
@@ -80,22 +83,34 @@ function ApprovalCard({ request }: { request: ChangeRequestRow }) {
           </button>
         </div>
       </div>
-      {rejecting && (
+      {reviewing && (
         <div className="mt-3 flex items-center gap-2 border-t border-gray-100 pt-3">
           <input
             type="text"
             value={note}
             onChange={(e) => setNote(e.target.value)}
-            placeholder="Reason (optional)"
+            placeholder="Note (optional)"
             className="flex-1 rounded-md border border-gray-300 px-2 py-1.5 text-sm"
           />
           <button
             type="button"
-            onClick={reject}
+            onClick={confirm}
             disabled={pending}
-            className="rounded-md bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
+            className={
+              reviewing === "approve"
+                ? "rounded-md bg-brand-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-50"
+                : "rounded-md bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
+            }
           >
-            Confirm Reject
+            {reviewing === "approve" ? "Confirm Approve" : "Confirm Reject"}
+          </button>
+          <button
+            type="button"
+            onClick={() => setReviewing(null)}
+            disabled={pending}
+            className="rounded-md border border-gray-300 px-3 py-1.5 text-sm hover:bg-gray-50 disabled:opacity-50"
+          >
+            Cancel
           </button>
         </div>
       )}

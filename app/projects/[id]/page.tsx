@@ -124,32 +124,36 @@ export default async function ProjectDetailPage({ params }: { params: { id: stri
             <Detail label="Planned End" value={fmtDate(project.planned_end_date)} />
             <Detail label="Estimated Effort" value={`${fmtHours(project.estimated_effort_hrs)} hrs`} />
             <Detail label="Working days left" value={String(project.working_days_remaining)} />
-            <Detail
-              label="JIRA Project"
-              value={
-                project.jira_url ? (
-                  <a href={project.jira_url} target="_blank" rel="noopener noreferrer"
-                    className="text-brand-700 hover:underline">
-                    Open in JIRA ↗
-                  </a>
-                ) : (
-                  "—"
-                )
-              }
-            />
-            <Detail
-              label="Google Drive"
-              value={
-                project.drive_url ? (
-                  <a href={project.drive_url} target="_blank" rel="noopener noreferrer"
-                    className="text-brand-700 hover:underline">
-                    Open in Drive ↗
-                  </a>
-                ) : (
-                  "—"
-                )
-              }
-            />
+            {!project.is_organizational && (
+              <>
+                <Detail
+                  label="JIRA Project"
+                  value={
+                    project.jira_url ? (
+                      <a href={project.jira_url} target="_blank" rel="noopener noreferrer"
+                        className="text-brand-700 hover:underline">
+                        Open in JIRA ↗
+                      </a>
+                    ) : (
+                      "—"
+                    )
+                  }
+                />
+                <Detail
+                  label="Google Drive"
+                  value={
+                    project.drive_url ? (
+                      <a href={project.drive_url} target="_blank" rel="noopener noreferrer"
+                        className="text-brand-700 hover:underline">
+                        Open in Drive ↗
+                      </a>
+                    ) : (
+                      "—"
+                    )
+                  }
+                />
+              </>
+            )}
             {project.stakeholder_description && (
               <div className="col-span-2">
                 <dt className="text-xs uppercase tracking-wide text-gray-400">Stakeholder Detail</dt>

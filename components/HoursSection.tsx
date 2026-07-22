@@ -1,8 +1,10 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { useFormState } from "react-dom";
 import { logHours, updateHours, deleteHours } from "@/app/projects/actions";
 import { ConfirmButton } from "@/components/ConfirmButton";
+import { Toast } from "@/components/Toast";
 import { round1, businessDays, isWeekend } from "@/lib/format";
 import type { HoursEntryRow } from "@/lib/types";
 
@@ -22,10 +24,16 @@ export function HoursSection({
   editableEntries?: boolean;
 }) {
   const [state, formAction] = useFormState(logHours.bind(null, projectId), undefined);
+  const [toast, setToast] = useState<string | null>(null);
   const today = new Date().toISOString().slice(0, 10);
+
+  useEffect(() => {
+    if (state?.ok) setToast("Hours logged successfully.");
+  }, [state]);
 
   return (
     <section className="rounded-xl border border-gray-200 bg-white">
+      {toast && <Toast message={toast} onDone={() => setToast(null)} />}
       <div className="border-b border-gray-200 px-4 py-3">
         <h2 className="text-sm font-semibold text-gray-800">Hours Log</h2>
       </div>

@@ -126,15 +126,19 @@ export function ProjectForm({
           className="input" placeholder="What this project is about" />
       </Field>
 
-      <Field label="JIRA Project Link">
-        <input type="url" name="jira_url" defaultValue={initial?.jira_url ?? ""}
-          className="input" placeholder="https://yourorg.atlassian.net/browse/PROJ-123" />
-      </Field>
+      {!isOrganizational && (
+        <>
+          <Field label="JIRA Project Link">
+            <input type="url" name="jira_url" defaultValue={initial?.jira_url ?? ""}
+              className="input" placeholder="https://yourorg.atlassian.net/browse/PROJ-123" />
+          </Field>
 
-      <Field label="Google Drive Link">
-        <input type="url" name="drive_url" defaultValue={initial?.drive_url ?? ""}
-          className="input" placeholder="https://drive.google.com/drive/folders/..." />
-      </Field>
+          <Field label="Google Drive Link">
+            <input type="url" name="drive_url" defaultValue={initial?.drive_url ?? ""}
+              className="input" placeholder="https://drive.google.com/drive/folders/..." />
+          </Field>
+        </>
+      )}
 
       <label className="flex items-center gap-2 text-sm text-gray-700">
         <input
@@ -147,8 +151,8 @@ export function ProjectForm({
       </label>
       {isOrganizational && (
         <p className="-mt-3 text-xs text-gray-500">
-          Project Type, Priority, Status, and Manager/Lead aren&apos;t relevant for organizational
-          entries and are left blank.
+          Project Type, Priority, Status, Manager/Lead, JIRA Project Link, and Google Drive Link
+          aren&apos;t relevant for organizational entries and are left blank.
         </p>
       )}
 

@@ -113,7 +113,7 @@ export type ChangeRequestStatus = "Pending" | "Approved" | "Rejected";
 export type EstimatedHoursPayload = { new_estimated_effort_hrs: number };
 export type NewMember = { user_id: string; start_date: string; end_date: string; allocated_hours: number };
 export type TeamMemberEdit = { assignment_id: string; start_date: string; end_date: string; allocated_hours: number };
-export type AllocationPayload = { adds: NewMember[]; updates: TeamMemberEdit[] };
+export type AllocationPayload = { adds: NewMember[]; updates: TeamMemberEdit[]; removes: string[] };
 
 export type ChangeRequestRow = {
   request_id: string;
@@ -127,6 +127,7 @@ export type ChangeRequestRow = {
   reviewed_by: string | null;
   reviewed_at: string | null;
   review_note: string | null;
+  acknowledged_at: string | null;
   created_at: string;
   project: { project_name: string } | null;
   requester: { full_name: string } | null;

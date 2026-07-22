@@ -167,7 +167,10 @@ export async function updateProject(
       if (error) return { error: friendlyError(error.message) };
       revalidatePath("/projects");
       revalidatePath(`/projects/${projectId}`);
-      return { message: staged.message };
+      // Redirect (not just return a message) so the Edit form doesn't keep
+      // showing the just-typed, not-yet-applied estimate value — the project
+      // page's pending-approval banner is the clear, single source of truth.
+      redirect(`/projects/${projectId}`);
     }
   }
 
@@ -251,13 +254,14 @@ export async function saveTeamChanges(
   projectId: string,
   adds: NewMember[],
   updates: TeamMemberEdit[],
+  removes: string[],
   reason?: string
 ): Promise<{ error?: string; message?: string; needsReason?: boolean }> {
   const { userId, profile } = await requireActiveUser();
   const isAdmin = profile.role === "Admin";
   const supabase = createClient();
 
-  if (adds.length === 0 && updates.length === 0) return {};
+  if (adds.length === 0 && updates.length === 0 && removes.length === 0) return {};
   for (const a of adds) {
     if (!a.user_id) return { error: "Select a team member." };
   }
@@ -270,19 +274,19 @@ export async function saveTeamChanges(
 
   if (!isAdmin) {
     // The project's first staffing pass (adding members to an otherwise-empty
-    // team, nothing being edited) applies immediately — everything after that,
-    // add or edit, is staged (Spec 10).
+    // team, nothing being edited or removed) applies immediately — everything
+    // after that, add, edit, or remove, is staged (Spec 10).
     const { count: existingCount } = await supabase
       .from("project_team_member")
       .select("assignment_id", { count: "exact", head: true })
       .eq("project_id", projectId);
-    const isFirstStaffingPass = !existingCount && updates.length === 0;
+    const isFirstStaffingPass = !existingCount && updates.length === 0 && removes.length === 0;
 
     if (!isFirstStaffingPass) {
       if (!reason) return { needsReason: true };
 
       const userIds = Array.from(new Set(adds.map((a) => a.user_id)));
-      const assignmentIds = updates.map((u) => u.assignment_id);
+      const assignmentIds = [...updates.map((u) => u.assignment_id), ...removes];
       const [{ data: metrics }, { data: newPeople }, { data: currentRows }] = await Promise.all([
         supabase.from("project_metrics").select("estimated_effort_hrs, planned_hours").eq("project_id", projectId).maybeSingle(),
         userIds.length
@@ -311,7 +315,14 @@ export async function saveTeamChanges(
           : `${u.start_date}–${u.end_date}`;
         lines.push(`${name}: ${hoursPart}, ${datesPart}`);
       }
-      const oldSum = updates.reduce((s, u) => s + (Number(currentByAssignment.get(u.assignment_id)?.allocated_hours) || 0), 0);
+      for (const assignmentId of removes) {
+        const current = currentByAssignment.get(assignmentId);
+        lines.push(`- ${current?.users?.full_name ?? "a team member"}: removed`);
+      }
+      const removedSum = removes.reduce((s, id) => s + (Number(currentByAssignment.get(id)?.allocated_hours) || 0), 0);
+      const oldSum =
+        updates.reduce((s, u) => s + (Number(currentByAssignment.get(u.assignment_id)?.allocated_hours) || 0), 0) +
+        removedSum;
       const newSum = adds.reduce((s, a) => s + a.allocated_hours, 0) + updates.reduce((s, u) => s + u.allocated_hours, 0);
       const projected = (metrics?.planned_hours ?? 0) - oldSum + newSum;
       lines.push(`Planned total: ${projected}/${metrics?.estimated_effort_hrs ?? "?"}h`);
@@ -320,7 +331,7 @@ export async function saveTeamChanges(
         projectId,
         requestedBy: userId,
         kind: "Allocation",
-        payload: { adds, updates },
+        payload: { adds, updates, removes },
         summary: lines.join("\n"),
         reason,
       });
@@ -338,19 +349,13 @@ export async function saveTeamChanges(
       .eq("assignment_id", u.assignment_id);
     if (error) return { error: friendlyError(error.message) };
   }
+  if (removes.length) {
+    const { error } = await supabase.from("project_team_member").delete().in("assignment_id", removes);
+    if (error) return { error: friendlyError(error.message) };
+  }
 
   revalidatePath(`/projects/${projectId}`);
   return {};
-}
-
-export async function removeTeamMember(projectId: string, assignmentId: string): Promise<void> {
-  const supabase = createClient();
-  const { error } = await supabase
-    .from("project_team_member")
-    .delete()
-    .eq("assignment_id", assignmentId);
-  if (error) throw new Error(friendlyError(error.message));
-  revalidatePath(`/projects/${projectId}`);
 }
 
 // ---------------------------------------------------------------------------
@@ -430,7 +435,7 @@ export async function deleteHours(projectId: string, entryId: string): Promise<v
 // exact staged write using the same tables/columns the direct-write paths
 // above use, then marks the request reviewed.
 // ---------------------------------------------------------------------------
-export async function approveChangeRequest(requestId: string): Promise<{ error?: string }> {
+export async function approveChangeRequest(requestId: string, note?: string): Promise<{ error?: string }> {
   const { profile } = await requireActiveUser();
   if (profile.role !== "Admin") return { error: "Admins only." };
   const supabase = createClient();
@@ -473,11 +478,20 @@ export async function approveChangeRequest(requestId: string): Promise<{ error?:
         .eq("assignment_id", u.assignment_id);
       if (error) return { error: friendlyError(error.message) };
     }
+    if (payload.removes?.length) {
+      const { error } = await supabase.from("project_team_member").delete().in("assignment_id", payload.removes);
+      if (error) return { error: friendlyError(error.message) };
+    }
   }
 
   const { error: reviewError } = await supabase
     .from("project_change_request")
-    .update({ status: "Approved", reviewed_by: profile.user_id, reviewed_at: new Date().toISOString() })
+    .update({
+      status: "Approved",
+      reviewed_by: profile.user_id,
+      reviewed_at: new Date().toISOString(),
+      review_note: note || null,
+    })
     .eq("request_id", requestId);
   if (reviewError) return { error: friendlyError(reviewError.message) };
 
@@ -528,4 +542,27 @@ export async function getPendingChangeRequests(projectId?: string): Promise<Chan
   if (projectId) query = query.eq("project_id", projectId);
   const { data } = await query;
   return (data ?? []) as unknown as ChangeRequestRow[];
+}
+
+// Fetch the caller's own reviewed-but-unacknowledged requests, for the
+// Dashboard notification banner (Spec 10 notification flow).
+export async function getReviewedChangeRequests(): Promise<ChangeRequestRow[]> {
+  const { userId } = await requireActiveUser();
+  const supabase = createClient();
+  const { data } = await supabase
+    .from("project_change_request")
+    .select("*, project:project(project_name), requester:users!project_change_request_requested_by_fkey(full_name)")
+    .eq("requested_by", userId)
+    .in("status", ["Approved", "Rejected"])
+    .is("acknowledged_at", null)
+    .order("reviewed_at", { ascending: false });
+  return (data ?? []) as unknown as ChangeRequestRow[];
+}
+
+export async function acknowledgeChangeRequest(requestId: string): Promise<{ error?: string }> {
+  const supabase = createClient();
+  const { error } = await supabase.rpc("fn_acknowledge_change_request", { p_request: requestId });
+  if (error) return { error: friendlyError(error.message) };
+  revalidatePath("/dashboard");
+  return {};
 }

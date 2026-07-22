@@ -6,9 +6,10 @@ import { SummaryCards } from "@/components/dashboard/SummaryCards";
 import { GlanceCards } from "@/components/dashboard/GlanceCards";
 import { ManagerSummary } from "@/components/dashboard/ManagerSummary";
 import { AllocationHeatmap } from "@/components/dashboard/AllocationHeatmap";
+import { ReviewedRequestsBanner } from "@/components/ReviewedRequestsBanner";
 import { mondayOf } from "@/lib/format";
 import type { ProjectMetrics, AllocationRow } from "@/lib/types";
-import { getPendingChangeRequests } from "@/app/projects/actions";
+import { getPendingChangeRequests, getReviewedChangeRequests } from "@/app/projects/actions";
 
 export default async function DashboardPage({
   searchParams,
@@ -39,6 +40,9 @@ export default async function DashboardPage({
   const portfolioProjects = projects.filter((p) => !p.is_organizational);
 
   const pendingApprovals = isAdmin ? await getPendingChangeRequests() : [];
+  // Admins never submit change requests themselves (their edits are never
+  // gated), so this is naturally empty for them.
+  const reviewedRequests = await getReviewedChangeRequests();
 
   // Allocation rows for those projects (RLS scopes to the visible set already).
   const allocations = projectIds.length
@@ -84,6 +88,8 @@ export default async function DashboardPage({
             {pendingApprovals.length} change{pendingApprovals.length === 1 ? "" : "s"} awaiting your approval →
           </Link>
         )}
+
+        <ReviewedRequestsBanner requests={reviewedRequests} />
 
         {projects.length === 0 ? (
           <div className="rounded-xl border border-dashed border-gray-300 bg-white px-4 py-16 text-center">
