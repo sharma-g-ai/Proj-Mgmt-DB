@@ -3,6 +3,7 @@
 export type Priority = "High" | "Medium" | "Low";
 export type UserRole = "Admin" | "Manager-Lead";
 export type HoursSource = "Manual" | "JIRA";
+export type HoursCategory = "Collaboration" | "Implementation";
 
 export type Profile = {
   user_id: string;
@@ -22,13 +23,14 @@ export type ProjectMetrics = {
   description: string | null;
   jira_url: string | null;
   drive_url: string | null;
-  project_type_id: string;
+  is_organizational: boolean;
+  project_type_id: string | null;
   project_type_label: string | null;
-  priority: Priority;
-  status_id: string;
+  priority: Priority | null;
+  status_id: string | null;
   status_label: string | null;
   status_detail: string | null;
-  manager_lead_id: string;
+  manager_lead_id: string | null;
   manager_lead_name: string | null;
   start_date: string;
   planned_end_date: string;
@@ -82,6 +84,7 @@ export type HoursEntryRow = {
   start_date: string;
   end_date: string;
   source: HoursSource;
+  category: HoursCategory;
   users: { full_name: string; email: string } | null;
 };
 
@@ -95,5 +98,36 @@ export type AllocationRow = {
   users: { full_name: string } | null;
 };
 
-// Result shape for form server actions (used with useFormState).
-export type ActionState = { error?: string; ok?: boolean } | undefined;
+// Result shape for form server actions (used with useFormState). `needsReason`
+// signals the write was NOT performed — the caller must collect a reason from
+// the user and resubmit with it before the change is staged (Spec 10).
+export type ActionState =
+  | { error?: string; ok?: boolean; message?: string; needsReason?: boolean }
+  | undefined;
+
+// Approval flow (Spec 10) — Manager-Lead edits to Estimated Effort Hrs or to a
+// resource allocation that would exceed it are staged here instead of applied.
+export type ChangeRequestKind = "EstimatedHours" | "Allocation";
+export type ChangeRequestStatus = "Pending" | "Approved" | "Rejected";
+
+export type EstimatedHoursPayload = { new_estimated_effort_hrs: number };
+export type NewMember = { user_id: string; start_date: string; end_date: string; allocated_hours: number };
+export type TeamMemberEdit = { assignment_id: string; start_date: string; end_date: string; allocated_hours: number };
+export type AllocationPayload = { adds: NewMember[]; updates: TeamMemberEdit[] };
+
+export type ChangeRequestRow = {
+  request_id: string;
+  project_id: string;
+  requested_by: string;
+  kind: ChangeRequestKind;
+  payload: EstimatedHoursPayload | AllocationPayload;
+  summary: string;
+  reason: string;
+  status: ChangeRequestStatus;
+  reviewed_by: string | null;
+  reviewed_at: string | null;
+  review_note: string | null;
+  created_at: string;
+  project: { project_name: string } | null;
+  requester: { full_name: string } | null;
+};

@@ -4,7 +4,7 @@ import type { ProjectMetrics } from "@/lib/types";
 // Spec 07 §2.1 — portfolio summary over the active, visible projects.
 export function SummaryCards({ projects }: { projects: ProjectMetrics[] }) {
   const byStatus = tally(projects.map((p) => p.status_label ?? "—"));
-  const byPriority = tally(projects.map((p) => p.priority));
+  const byPriority = tally(projects.map((p) => p.priority ?? "—"));
 
   const completions = projects
     .map((p) => p.pct_completion)

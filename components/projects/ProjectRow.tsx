@@ -18,6 +18,7 @@ export type ProjectRowData = {
   manager_lead_name: string | null;
   pct_completion: number | null;
   is_archived: boolean;
+  is_organizational: boolean;
 };
 
 // One Projects-list row: a lean display row plus an expandable quick-add hours form.
@@ -52,6 +53,11 @@ export function ProjectRow({
           {readOnly && (
             <span className="ml-2 rounded bg-gray-200 px-1.5 py-0.5 text-[10px] font-medium uppercase text-gray-600">
               Archived
+            </span>
+          )}
+          {project.is_organizational && (
+            <span className="ml-2 rounded bg-sky-100 px-1.5 py-0.5 text-[10px] font-medium uppercase text-sky-700">
+              Organizational
             </span>
           )}
         </td>
@@ -113,7 +119,7 @@ export function ProjectRow({
                   Person
                   <select name="user_id" required defaultValue=""
                     className="rounded-md border border-gray-300 px-2 py-1.5 text-sm">
-                    <option value="" disabled>Team member…</option>
+                    <option value="" disabled>Person…</option>
                     {teamOptions.map((t) => (
                       <option key={t.user_id} value={t.user_id}>{t.name}</option>
                     ))}
@@ -133,6 +139,14 @@ export function ProjectRow({
                   Hours
                   <input type="number" name="hours_logged" required min="0.1" step="0.1"
                     className="w-24 rounded-md border border-gray-300 px-2 py-1.5 text-sm" />
+                </label>
+                <label className="flex flex-col gap-1 text-xs text-gray-500">
+                  Category
+                  <select name="category" defaultValue="Implementation"
+                    className="rounded-md border border-gray-300 px-2 py-1.5 text-sm">
+                    <option value="Implementation">Implementation</option>
+                    <option value="Collaboration">Collaboration</option>
+                  </select>
                 </label>
                 <button className="rounded-md bg-brand-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-700">
                   + Log

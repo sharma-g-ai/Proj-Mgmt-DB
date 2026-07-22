@@ -15,6 +15,7 @@ export type ReportHoursRow = {
   start_date: string;
   end_date: string;
   hours_logged: number;
+  category: string;
   source: string;
 };
 

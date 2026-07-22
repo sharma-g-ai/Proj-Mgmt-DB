@@ -6,9 +6,9 @@ import { AppHeader } from "@/components/AppHeader";
 import { TeamSection } from "@/components/TeamSection";
 import { ConfirmButton } from "@/components/ConfirmButton";
 import { PriorityBadge, OverBadge, StatusBadge } from "@/components/Badges";
-import { setArchived } from "@/app/projects/actions";
+import { setArchived, getPendingChangeRequests } from "@/app/projects/actions";
 import { fmtPct, fmtHours, fmtDate } from "@/lib/format";
-import type { ProjectMetrics, TeamMemberRow, UserOption, Priority } from "@/lib/types";
+import type { ProjectMetrics, TeamMemberRow, UserOption } from "@/lib/types";
 
 export default async function ProjectDetailPage({ params }: { params: { id: string } }) {
   const { profile } = await requireActiveUser();
@@ -29,9 +29,14 @@ export default async function ProjectDetailPage({ params }: { params: { id: stri
 
   if (!m) notFound();
   const project = m as ProjectMetrics;
-  const readOnly = project.is_archived;
+  // A non-admin viewing an organizational entry has no RLS rights on the
+  // project/team roster (it has no leader) — only hours logging is open to
+  // them, via the "Log time" link below, which isn't gated by this flag.
+  const isOrgViewerNonAdmin = project.is_organizational && !isAdmin;
+  const readOnly = project.is_archived || isOrgViewerNonAdmin;
 
   const members = (memberData ?? []) as unknown as TeamMemberRow[];
+  const pendingRequests = await getPendingChangeRequests(project.project_id);
 
   return (
     <div className="min-h-screen">
@@ -48,7 +53,7 @@ export default async function ProjectDetailPage({ params }: { params: { id: stri
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <h1 className="text-xl font-semibold tracking-tight">{project.project_name}</h1>
-              <PriorityBadge priority={project.priority as Priority} />
+              <PriorityBadge priority={project.priority} />
               {project.is_archived && (
                 <span className="rounded bg-gray-200 px-2 py-0.5 text-xs font-medium uppercase text-gray-600">
                   Archived
@@ -75,7 +80,7 @@ export default async function ProjectDetailPage({ params }: { params: { id: stri
                   </ConfirmButton>
                 </>
               )}
-              {readOnly && isAdmin && (
+              {project.is_archived && isAdmin && (
                 <ConfirmButton
                   action={setArchived.bind(null, project.project_id, false)}
                   message={`Unarchive "${project.project_name}"?`}
@@ -84,12 +89,29 @@ export default async function ProjectDetailPage({ params }: { params: { id: stri
                   Unarchive
                 </ConfirmButton>
               )}
-              {readOnly && !isAdmin && (
+              {project.is_archived && !isAdmin && (
                 <span className="text-xs text-gray-500">Archived — contact an Admin to unarchive.</span>
+              )}
+              {!project.is_archived && isOrgViewerNonAdmin && (
+                <span className="text-xs text-gray-500">
+                  Organizational entry — managed by Admins. You can still log hours.
+                </span>
               )}
             </div>
           </div>
         </div>
+
+        {pendingRequests.length > 0 && (
+          <div className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-700">
+            {pendingRequests.map((r) => (
+              <p key={r.request_id} className="whitespace-pre-line">
+                {r.kind === "EstimatedHours" ? "A change to Estimated Effort Hrs" : "A team allocation change"} is
+                awaiting Admin approval: {r.summary}
+                {r.reason && <span className="italic"> — &ldquo;{r.reason}&rdquo;</span>}
+              </p>
+            ))}
+          </div>
+        )}
 
         {/* Overview */}
         <section className="grid grid-cols-1 gap-6 rounded-xl border border-gray-200 bg-white p-5 md:grid-cols-2">

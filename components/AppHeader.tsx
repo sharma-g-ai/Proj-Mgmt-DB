@@ -21,7 +21,10 @@ export function AppHeader({ profile }: { profile: Profile }) {
             <NavLink href="/projects" pathname={pathname}>Projects</NavLink>
             <NavLink href="/reports" pathname={pathname}>Reports</NavLink>
             {profile.role === "Admin" && (
-              <NavLink href="/users" pathname={pathname}>Users</NavLink>
+              <>
+                <NavLink href="/users" pathname={pathname}>Users</NavLink>
+                <NavLink href="/approvals" pathname={pathname}>Approvals</NavLink>
+              </>
             )}
           </nav>
         </div>

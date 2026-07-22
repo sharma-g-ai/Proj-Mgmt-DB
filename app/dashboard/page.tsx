@@ -8,6 +8,7 @@ import { ManagerSummary } from "@/components/dashboard/ManagerSummary";
 import { AllocationHeatmap } from "@/components/dashboard/AllocationHeatmap";
 import { mondayOf } from "@/lib/format";
 import type { ProjectMetrics, AllocationRow } from "@/lib/types";
+import { getPendingChangeRequests } from "@/app/projects/actions";
 
 export default async function DashboardPage({
   searchParams,
@@ -32,6 +33,12 @@ export default async function DashboardPage({
 
   const projects = (projData ?? []) as ProjectMetrics[];
   const projectIds = projects.map((p) => p.project_id);
+  // Portfolio-health widgets exclude organizational (non-billable) entries — they
+  // have no meaningful completion/estimate semantics. Staffing/utilization still
+  // sees the full set below (real logged time counts either way).
+  const portfolioProjects = projects.filter((p) => !p.is_organizational);
+
+  const pendingApprovals = isAdmin ? await getPendingChangeRequests() : [];
 
   // Allocation rows for those projects (RLS scopes to the visible set already).
   const allocations = projectIds.length
@@ -72,6 +79,12 @@ export default async function DashboardPage({
           </Link>
         </div>
 
+        {pendingApprovals.length > 0 && (
+          <Link href="/approvals" className="block rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-700 hover:bg-amber-100">
+            {pendingApprovals.length} change{pendingApprovals.length === 1 ? "" : "s"} awaiting your approval →
+          </Link>
+        )}
+
         {projects.length === 0 ? (
           <div className="rounded-xl border border-dashed border-gray-300 bg-white px-4 py-16 text-center">
             <p className="text-gray-600">No projects visible yet.</p>
@@ -81,8 +94,8 @@ export default async function DashboardPage({
           </div>
         ) : (
           <>
-            <SummaryCards projects={projects} />
-            {isAdmin ? <ManagerSummary projects={projects} /> : <GlanceCards projects={projects} />}
+            <SummaryCards projects={portfolioProjects} />
+            {isAdmin ? <ManagerSummary projects={portfolioProjects} /> : <GlanceCards projects={portfolioProjects} />}
             <AllocationHeatmap
               allocations={allocations}
               selectedWeek={selectedWeek}

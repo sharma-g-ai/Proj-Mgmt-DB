@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
-import { useFormState, useFormStatus } from "react-dom";
+import { useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { isWeekend } from "@/lib/format";
+import { ReasonModal } from "@/components/ReasonModal";
 import type { ActionState, LookupOption, UserOption } from "@/lib/types";
 
 type Initial = {
@@ -13,6 +13,7 @@ type Initial = {
   description?: string | null;
   jira_url?: string | null;
   drive_url?: string | null;
+  is_organizational?: boolean;
   project_type_id?: string;
   priority?: string;
   status_id?: string;
@@ -44,21 +45,62 @@ export function ProjectForm({
   initial?: Initial;
   cancelHref: string;
 }) {
-  const [state, formAction] = useFormState(action, undefined);
+  const [state, setState] = useState<ActionState>(undefined);
+  const [needsReason, setNeedsReason] = useState(false);
+  const [pending, startTransition] = useTransition();
+  const formRef = useRef<HTMLFormElement>(null);
+  const [isOrganizational, setIsOrganizational] = useState(initial?.is_organizational ?? false);
   const [start, setStart] = useState(initial?.start_date ?? "");
   const [end, setEnd] = useState(initial?.planned_end_date ?? "");
-  const dateOrderInvalid = start && end && end < start;
+  const [singleDay, setSingleDay] = useState(
+    Boolean(initial?.start_date) && initial?.start_date === initial?.planned_end_date
+  );
+  const effectiveEnd = singleDay ? start : end;
+  const dateOrderInvalid = start && effectiveEnd && effectiveEnd < start;
   const startWeekend = start && isWeekend(start);
-  const endWeekend = end && isWeekend(end);
+  const endWeekend = !singleDay && end && isWeekend(end);
   const invalid = Boolean(dateOrderInvalid || startWeekend || endWeekend);
 
   // Spec 05 §3.2 / §4.1: a non-Admin can only ever be the lead themselves.
   const lockLead = !isAdmin;
 
+  function submit(reason?: string) {
+    const form = formRef.current;
+    if (!form) return;
+    const formData = new FormData(form);
+    if (reason) formData.set("reason", reason);
+    startTransition(async () => {
+      const res = await action(undefined, formData);
+      if (res?.needsReason) setNeedsReason(true);
+      else {
+        setNeedsReason(false);
+        setState(res);
+      }
+    });
+  }
+
   return (
-    <form action={formAction} className="space-y-5">
+    <form
+      ref={formRef}
+      onSubmit={(e) => {
+        e.preventDefault();
+        submit();
+      }}
+      className="space-y-5"
+    >
       {state?.error && (
         <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{state.error}</p>
+      )}
+      {state?.message && (
+        <p className="rounded-md bg-blue-50 px-3 py-2 text-sm text-blue-700">{state.message}</p>
+      )}
+      {needsReason && (
+        <ReasonModal
+          title="Reason for this Estimated Effort Hrs change"
+          pending={pending}
+          onCancel={() => setNeedsReason(false)}
+          onSubmit={(reason) => submit(reason)}
+        />
       )}
 
       <Field label="Project Name" required>
@@ -94,58 +136,96 @@ export function ProjectForm({
           className="input" placeholder="https://drive.google.com/drive/folders/..." />
       </Field>
 
+      <label className="flex items-center gap-2 text-sm text-gray-700">
+        <input
+          type="checkbox"
+          name="is_organizational"
+          checked={isOrganizational}
+          onChange={(e) => setIsOrganizational(e.target.checked)}
+        />
+        Organizational entry (non-billable, excluded from portfolio dashboards)
+      </label>
+      {isOrganizational && (
+        <p className="-mt-3 text-xs text-gray-500">
+          Project Type, Priority, Status, and Manager/Lead aren&apos;t relevant for organizational
+          entries and are left blank.
+        </p>
+      )}
+
       <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-        <Field label="Project Type" required>
-          <select name="project_type_id" required defaultValue={initial?.project_type_id ?? ""} className="input">
-            <option value="" disabled>Select…</option>
-            {types.map((t) => (
-              <option key={t.option_id} value={t.option_id}>{t.label}</option>
-            ))}
-          </select>
-        </Field>
+        {!isOrganizational && (
+          <>
+            <Field label="Project Type" required>
+              <select name="project_type_id" required defaultValue={initial?.project_type_id ?? ""} className="input">
+                <option value="" disabled>Select…</option>
+                {types.map((t) => (
+                  <option key={t.option_id} value={t.option_id}>{t.label}</option>
+                ))}
+              </select>
+            </Field>
 
-        <Field label="Priority" required>
-          <select name="priority" required defaultValue={initial?.priority ?? ""} className="input">
-            <option value="" disabled>Select…</option>
-            {["High", "Medium", "Low"].map((p) => (
-              <option key={p} value={p}>{p}</option>
-            ))}
-          </select>
-        </Field>
+            <Field label="Priority" required>
+              <select name="priority" required defaultValue={initial?.priority ?? ""} className="input">
+                <option value="" disabled>Select…</option>
+                {["High", "Medium", "Low"].map((p) => (
+                  <option key={p} value={p}>{p}</option>
+                ))}
+              </select>
+            </Field>
 
-        <Field label="Status" required>
-          <select name="status_id" required defaultValue={initial?.status_id ?? ""} className="input">
-            <option value="" disabled>Select…</option>
-            {statuses.map((s) => (
-              <option key={s.option_id} value={s.option_id}>{s.label}</option>
-            ))}
-          </select>
-        </Field>
+            <Field label="Status" required>
+              <select name="status_id" required defaultValue={initial?.status_id ?? ""} className="input">
+                <option value="" disabled>Select…</option>
+                {statuses.map((s) => (
+                  <option key={s.option_id} value={s.option_id}>{s.label}</option>
+                ))}
+              </select>
+            </Field>
 
-        <Field label="Manager/Lead" required>
-          {lockLead ? (
-            <>
-              <input type="hidden" name="manager_lead_id" value={currentUser.user_id} />
-              <input className="input bg-gray-50 text-gray-500" value={currentUser.full_name} disabled />
-            </>
-          ) : (
-            <select name="manager_lead_id" required defaultValue={initial?.manager_lead_id ?? currentUser.user_id} className="input">
-              {leads.map((u) => (
-                <option key={u.user_id} value={u.user_id}>{u.full_name}</option>
-              ))}
-            </select>
-          )}
-        </Field>
+            <Field label="Manager/Lead" required>
+              {lockLead ? (
+                <>
+                  <input type="hidden" name="manager_lead_id" value={currentUser.user_id} />
+                  <input className="input bg-gray-50 text-gray-500" value={currentUser.full_name} disabled />
+                </>
+              ) : (
+                <select name="manager_lead_id" required defaultValue={initial?.manager_lead_id ?? currentUser.user_id} className="input">
+                  {leads.map((u) => (
+                    <option key={u.user_id} value={u.user_id}>{u.full_name}</option>
+                  ))}
+                </select>
+              )}
+            </Field>
+          </>
+        )}
 
         <Field label="Start Date" required error={startWeekend ? "Must be a weekday (no weekends)." : undefined}>
           <input type="date" name="start_date" required value={start}
-            onChange={(e) => setStart(e.target.value)} className="input" />
+            onChange={(e) => {
+              setStart(e.target.value);
+              if (singleDay) setEnd(e.target.value);
+            }} className="input" />
+          <label className="mt-1.5 flex items-center gap-1.5 text-xs text-gray-600">
+            <input type="checkbox" checked={singleDay}
+              onChange={(e) => {
+                setSingleDay(e.target.checked);
+                if (e.target.checked) setEnd(start);
+              }} />
+            Single-day event (no separate end date)
+          </label>
         </Field>
 
-        <Field label="Planned End Date" required
+        <Field label="Planned End Date" required={!singleDay}
           error={endWeekend ? "Must be a weekday (no weekends)." : dateOrderInvalid ? "Must be on or after Start Date." : undefined}>
-          <input type="date" name="planned_end_date" required value={end}
-            onChange={(e) => setEnd(e.target.value)} className="input" />
+          {singleDay ? (
+            <>
+              <input type="hidden" name="planned_end_date" value={start} />
+              <input className="input bg-gray-50 text-gray-500" value={start ? "Same as Start Date" : ""} disabled />
+            </>
+          ) : (
+            <input type="date" name="planned_end_date" required value={end}
+              onChange={(e) => setEnd(e.target.value)} className="input" />
+          )}
         </Field>
       </div>
 
@@ -162,7 +242,13 @@ export function ProjectForm({
       )}
 
       <div className="flex items-center gap-3 pt-2">
-        <SubmitButton disabled={invalid} label={mode === "create" ? "Create Project" : "Save Changes"} />
+        <button
+          type="submit"
+          disabled={pending || invalid}
+          className="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50"
+        >
+          {pending ? "Saving…" : mode === "create" ? "Create Project" : "Save Changes"}
+        </button>
         <Link href={cancelHref} className="text-sm text-gray-500 hover:text-gray-700">
           Cancel
         </Link>
@@ -191,18 +277,5 @@ function Field({
       {children}
       {error && <span className="mt-1 block text-xs text-red-600">{error}</span>}
     </label>
-  );
-}
-
-function SubmitButton({ label, disabled }: { label: string; disabled?: boolean }) {
-  const { pending } = useFormStatus();
-  return (
-    <button
-      type="submit"
-      disabled={pending || disabled}
-      className="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50"
-    >
-      {pending ? "Saving…" : label}
-    </button>
   );
 }

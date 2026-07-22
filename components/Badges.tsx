@@ -7,7 +7,8 @@ const priorityStyles: Record<Priority, string> = {
   Low: "bg-gray-100 text-gray-600 ring-gray-500/20",
 };
 
-export function PriorityBadge({ priority }: { priority: Priority }) {
+export function PriorityBadge({ priority }: { priority: Priority | null }) {
+  if (!priority) return <span className="text-gray-400">—</span>;
   return (
     <span
       className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset ${priorityStyles[priority]}`}
