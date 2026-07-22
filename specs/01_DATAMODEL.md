@@ -46,14 +46,15 @@ Managed user profile table — no external directory sync at v1. **Implemented a
 | `project_id` | UUID / PK | Auto-generated |
 | `project_name` | Text | Required, unique |
 | `stakeholder` | Text | Required |
-| `project_type_id` | FK → `ProjectTypeOption` | Required |
-| `priority` | Enum | `High` \| `Medium` \| `Low` — Required, fixed list |
-| `status_id` | FK → `StatusOption` | Required |
-| `manager_lead_id` | FK → `User` | Required. Must be a `User` with role `Manager-Lead` or `Admin` |
+| `project_type_id` | FK → `ProjectTypeOption` | Required unless `is_organizational = true`, in which case left `NULL` |
+| `priority` | Enum | `High` \| `Medium` \| `Low` — required unless `is_organizational = true`, in which case left `NULL` |
+| `status_id` | FK → `StatusOption` | Required unless `is_organizational = true`, in which case left `NULL` |
+| `manager_lead_id` | FK → `User` | Required and must reference a `User` with role `Manager-Lead` or `Admin`, unless `is_organizational = true`, in which case may be left `NULL` — enforced by `trg_check_manager_lead`, not just app-layer validation |
 | `start_date` | Date | Required. See §4 Calendar Rules |
 | `planned_end_date` | Date | Required. Must be ≥ `start_date`. See §4 |
 | `estimated_effort_hrs` | Decimal | Required. Total estimated hours for the project — denominator for % Completion |
 | `is_archived` | Boolean | Default `false`. Soft-delete via archive rather than hard delete, to preserve reporting history |
+| `is_organizational` | Boolean | Default `false`. Marks a company-wide, non-billable placeholder (e.g. "Company Holidays", "All-Hands") rather than a real deliverable. Reusable — any Admin can flag any project. Excluded from portfolio-health dashboard widgets (Summary Cards, Manager/Lead project-count, At-a-Glance); still requires the normal `ProjectTeamMember` roster to log hours against, and still counts toward staffing/utilization (Spec 07 §2.3). Project Type, Priority, Status, and Manager/Lead are not meaningful for an organizational entry and are left blank in the form and `NULL` in the DB |
 | `created_at` / `updated_at` | Timestamp | System-managed |
 
 **Relationships:**
@@ -93,9 +94,10 @@ Logged like an allocation — a date range plus a total, rather than one row per
 |---|---|---|
 | `entry_id` | UUID / PK | Auto-generated |
 | `project_id` | FK → `Project` | Required |
-| `user_id` | FK → `User` | Required — restricted to users who are formal `ProjectTeamMember`s on that project |
+| `user_id` | FK → `User` | Required — restricted to users who are formal `ProjectTeamMember`s on that project, **except** on an organizational entry (`Project.is_organizational = true`), where any active `User` may be logged — enforced by `trg_check_hours_member`, which skips its roster check entirely for those projects |
 | `start_date` / `end_date` | Date | Required. The date range the hours apply to (`end_date >= start_date`) |
 | `hours_logged` | Decimal | Required, > 0 — the total for the whole `[start_date, end_date]` range (not a per-day rate) |
+| `category` | Enum | `Collaboration` \| `Implementation` — Required. Defaults to `Implementation`. Fixed 2-value set (mirrors `Priority`), not an admin-managed lookup |
 | `source` | Enum | `Manual` \| `JIRA` — Required. Defaults to `Manual` at v1; `JIRA` reserved for future sync (see §7) |
 | `created_at` | Timestamp | System-managed |
 

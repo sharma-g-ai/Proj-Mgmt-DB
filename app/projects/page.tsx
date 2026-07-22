@@ -46,13 +46,21 @@ export default async function ProjectsPage({
   const rows = (projects ?? []) as ProjectMetrics[];
 
   // Team members per visible project, for the inline quick-add hours form (RLS-scoped).
+  // Organizational entries have no roster requirement — any active user can be
+  // logged for (Spec 05 §4.3 addendum) — so they get the full active-user list.
   const ids = rows.map((r) => r.project_id);
+  const orgIds = new Set(rows.filter((r) => r.is_organizational).map((r) => r.project_id));
   const teamByProject = new Map<string, TeamOption[]>();
   if (ids.length) {
-    const { data: tm } = await supabase
-      .from("project_team_member")
-      .select("project_id, user_id, users(full_name)")
-      .in("project_id", ids);
+    const nonOrgIds = ids.filter((id) => !orgIds.has(id));
+    const [{ data: tm }, { data: allUsers }] = await Promise.all([
+      nonOrgIds.length
+        ? supabase.from("project_team_member").select("project_id, user_id, users(full_name)").in("project_id", nonOrgIds)
+        : Promise.resolve({ data: [] as unknown[] }),
+      orgIds.size
+        ? supabase.from("users").select("user_id, full_name").eq("is_active", true).order("full_name")
+        : Promise.resolve({ data: [] as { user_id: string; full_name: string }[] }),
+    ]);
     for (const m of (tm ?? []) as unknown as {
       project_id: string;
       user_id: string;
@@ -63,6 +71,10 @@ export default async function ProjectsPage({
         list.push({ user_id: m.user_id, name: m.users?.full_name ?? "Unknown (pending user)" });
       }
       teamByProject.set(m.project_id, list);
+    }
+    if (allUsers?.length) {
+      const orgOptions = allUsers.map((u) => ({ user_id: u.user_id, name: u.full_name }));
+      for (const id of Array.from(orgIds)) teamByProject.set(id, orgOptions);
     }
   }
 
@@ -163,6 +175,7 @@ export default async function ProjectsPage({
                     manager_lead_name: p.manager_lead_name,
                     pct_completion: p.pct_completion,
                     is_archived: p.is_archived,
+                    is_organizational: p.is_organizational,
                   }}
                 />
               ))}

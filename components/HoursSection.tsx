@@ -13,11 +13,13 @@ export function HoursSection({
   entries,
   teamOptions,
   readOnly,
+  editableEntries = true,
 }: {
   projectId: string;
   entries: HoursEntryRow[];
   teamOptions: TeamOption[];
   readOnly: boolean;
+  editableEntries?: boolean;
 }) {
   const [state, formAction] = useFormState(logHours.bind(null, projectId), undefined);
   const today = new Date().toISOString().slice(0, 10);
@@ -36,6 +38,7 @@ export function HoursSection({
               <th className="px-4 py-2 font-medium">Start Date</th>
               <th className="px-4 py-2 font-medium">End Date</th>
               <th className="px-4 py-2 font-medium">Hours</th>
+              <th className="px-4 py-2 font-medium">Category</th>
               <th className="px-4 py-2 font-medium">Source</th>
               {!readOnly && <th className="px-4 py-2" />}
             </tr>
@@ -43,13 +46,13 @@ export function HoursSection({
           <tbody className="divide-y divide-gray-100">
             {entries.length === 0 && (
               <tr>
-                <td colSpan={6} className="px-4 py-6 text-center text-gray-500">
+                <td colSpan={7} className="px-4 py-6 text-center text-gray-500">
                   No hours logged yet.
                 </td>
               </tr>
             )}
             {entries.map((e) => (
-              <HoursRow key={e.entry_id} projectId={projectId} entry={e} readOnly={readOnly} />
+              <HoursRow key={e.entry_id} projectId={projectId} entry={e} readOnly={readOnly} editableEntries={editableEntries} />
             ))}
           </tbody>
         </table>
@@ -60,7 +63,7 @@ export function HoursSection({
           <label className="flex flex-col gap-1 text-xs text-gray-500">
             Person
             <select name="user_id" required defaultValue="" className="rounded-md border border-gray-300 px-2 py-1.5 text-sm">
-              <option value="" disabled>Team member…</option>
+              <option value="" disabled>Person…</option>
               {teamOptions.map((t) => (
                 <option key={t.user_id} value={t.user_id}>{t.name}</option>
               ))}
@@ -81,6 +84,13 @@ export function HoursSection({
             <input type="number" name="hours_logged" required min="0.1" step="0.1"
               className="w-28 rounded-md border border-gray-300 px-2 py-1.5 text-sm" />
           </label>
+          <label className="flex flex-col gap-1 text-xs text-gray-500">
+            Category
+            <select name="category" defaultValue="Implementation" className="rounded-md border border-gray-300 px-2 py-1.5 text-sm">
+              <option value="Implementation">Implementation</option>
+              <option value="Collaboration">Collaboration</option>
+            </select>
+          </label>
           <button className="rounded-md bg-brand-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-700">
             + Log Hours
           </button>
@@ -100,10 +110,12 @@ function HoursRow({
   projectId,
   entry,
   readOnly,
+  editableEntries,
 }: {
   projectId: string;
   entry: HoursEntryRow;
   readOnly: boolean;
+  editableEntries: boolean;
 }) {
   const [state, formAction] = useFormState(
     updateHours.bind(null, projectId, entry.entry_id),
@@ -114,7 +126,9 @@ function HoursRow({
   const perDay = days > 0 ? round1(entry.hours_logged / days) : 0;
   const weekendWarn = isWeekend(entry.start_date) || isWeekend(entry.end_date);
   // JIRA rows would be read-only once sync exists (Spec 05 §4.3); none at v1.
-  const rowReadOnly = readOnly || entry.source === "JIRA";
+  // Organizational-entry hours also render read-only for non-admins — editing
+  // stays Admin-only there (no "logged by" column to scope to your own).
+  const rowReadOnly = readOnly || entry.source === "JIRA" || !editableEntries;
 
   if (rowReadOnly) {
     return (
@@ -126,6 +140,7 @@ function HoursRow({
           {round1(entry.hours_logged)}{" "}
           <span className="text-xs text-gray-400">({perDay}/d, {days}d)</span>
         </td>
+        <td className="px-4 py-3 text-gray-500">{entry.category}</td>
         <td className="px-4 py-3 text-gray-500">{entry.source}</td>
         {!readOnly && <td className="px-4 py-3 text-xs text-gray-400">read-only</td>}
       </tr>
@@ -152,6 +167,13 @@ function HoursRow({
         <div className="mt-1 text-xs text-gray-400">
           {perDay}/d ({days}d){weekendWarn && <span className="ml-1 text-amber-600">weekend date</span>}
         </div>
+      </td>
+      <td className="px-4 py-2">
+        <select form={`h-${entry.entry_id}`} name="category" defaultValue={entry.category}
+          className="rounded-md border border-gray-300 px-2 py-1 text-sm">
+          <option value="Implementation">Implementation</option>
+          <option value="Collaboration">Collaboration</option>
+        </select>
       </td>
       <td className="px-4 py-3 text-gray-500">{entry.source}</td>
       <td className="px-4 py-2">

@@ -53,11 +53,18 @@ Legend: **C**reate, **R**ead, **U**pdate, **D**elete (soft-delete/deactivate/arc
 |---|---|---|
 | Create | ✅ | ✅ |
 | Read — projects they lead | ✅ | ✅ |
+| Read — organizational entries (`is_organizational = true`) | ✅ | ✅ (all, regardless of who leads — see §4.3 addendum) |
 | Read — all other projects | ✅ | ❌ (strict silo — no cross-portfolio visibility) |
 | Update — projects they lead | ✅ | ✅ |
-| Update — projects led by someone else | ✅ | ❌ |
+| Update — projects led by someone else, or organizational entries | ✅ | ❌ |
 | Archive/Delete | ✅ | Own projects only |
 | Reassign `manager_lead_id` to someone else | ✅ | ❌ |
+
+**Organizational-entry read carve-out**: since `manager_lead_id` is `NULL` for an organizational entry
+(Spec 01 §2.2), the normal `manager_lead_id = auth.uid()` scoping can never match it — without an
+explicit carve-out, only Admins could ever see one. `project_select` therefore also allows any active
+user to read a row where `is_organizational = true`. This is read-only visibility; edit/archive rights
+on the project itself are unaffected and remain effectively Admin-only for these rows.
 
 **RLS policies (illustrative):**
 ```sql
@@ -90,11 +97,24 @@ create policy project_update on project for update
 ### 4.3 `HoursLogEntry`
 | Action | Admin | Manager-Lead |
 |---|---|---|
-| Create/Update/Delete — on projects they lead | ✅ | ✅ |
-| Create/Update/Delete — on projects led by others | ✅ | ❌ |
-| Read | ✅ (all) | Own projects only |
+| Create/Read — on projects they lead | ✅ | ✅ |
+| Create/Read — on organizational entries | ✅ | ✅ (any active user, not just the requester's own led projects) |
+| Update/Delete — on projects they lead | ✅ | ✅ |
+| Update/Delete — on organizational entries | ✅ | ❌ (Admin-only — see addendum) |
+| Create/Update/Delete/Read — on projects led by others (non-organizational) | ✅ | ❌ |
 
-**RLS:** same subquery pattern as §4.2. Additionally, `user_id` on insert must correspond to an existing `ProjectTeamMember` row for that project (enforced via a `CHECK`/trigger, not RLS, since it's a cross-row business rule rather than an ownership check).
+**RLS:** same subquery pattern as §4.2, using a `leads_project(project_id)` check, plus a
+`project_is_organizational(project_id)` helper (mirrors `leads_project`) OR'd into `hours_select` and
+`hours_insert` only — `hours_update`/`hours_delete` are deliberately left unchanged. Additionally,
+`user_id` on insert must correspond to an existing `ProjectTeamMember` row for that project — **except
+on organizational entries**, where this check is skipped entirely (enforced via `trg_check_hours_member`,
+not RLS, since it's a cross-row business rule rather than an ownership check).
+
+**Organizational-entry hours addendum**: because `hours_log_entry` has no "logged by" column, there is
+no way to scope update/delete to "the Manager-Lead who logged this entry." The accepted trade-off:
+any active user (any Manager-Lead) may add an hours entry to an organizational project — for anyone,
+without needing a `ProjectTeamMember` roster row — but editing or deleting an *existing* entry on an
+organizational project is Admin-only, even for the Manager-Lead who logged it.
 
 ### 4.4 `User`
 | Action | Admin | Manager-Lead |
@@ -120,6 +140,15 @@ create policy users_write on public.users for update
 | Read (to populate dropdowns) | ✅ | ✅ |
 
 **RLS:** `select using (true)` (any authenticated active user can read), `write using (is_admin())`.
+
+### 4.6a `ProjectChangeRequest` (Spec 10 — approval flow)
+| Action | Admin | Manager-Lead |
+|---|---|---|
+| Submit a request — own led project | N/A (never staged, writes directly) | ✅ |
+| View requests — own led project | ✅ (all) | ✅ (own only) |
+| Approve / Reject | ✅ | ❌ |
+
+**RLS:** select/insert `using/with check (is_admin() or (is_active_user() and leads_project(project_id)))`; update (review) `using/with check (is_admin())`.
 
 ### 4.6 Dashboard / Reports
 | Action | Admin | Manager-Lead |

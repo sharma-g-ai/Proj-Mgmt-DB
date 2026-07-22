@@ -361,7 +361,7 @@ const projectColumns: ColumnDef<ReportProjectRow>[] = [
   { key: "allocated_hours", label: "Man-hours", align: "right", filter: "text", sortValue: (p) => numSort(p.allocated_hours), display: (p) => (p.allocated_hours === null ? "—" : fmtHours(p.allocated_hours)), filterText: (p) => (p.allocated_hours === null ? "" : fmtHours(p.allocated_hours)) },
   { key: "stakeholder", label: "Stakeholder", filter: "select", group: true, sortValue: (p) => p.stakeholder, display: (p) => p.stakeholder, filterText: (p) => p.stakeholder },
   { key: "project_type_label", label: "Type", filter: "select", group: true, sortValue: (p) => dash(p.project_type_label), display: (p) => dash(p.project_type_label), filterText: (p) => dash(p.project_type_label) },
-  { key: "priority", label: "Priority", filter: "select", group: true, sortValue: (p) => p.priority, display: (p) => p.priority, filterText: (p) => p.priority },
+  { key: "priority", label: "Priority", filter: "select", group: true, sortValue: (p) => dash(p.priority), display: (p) => dash(p.priority), filterText: (p) => dash(p.priority) },
   { key: "status_label", label: "Status", filter: "select", group: true, sortValue: (p) => dash(p.status_label), display: (p) => dash(p.status_label), filterText: (p) => dash(p.status_label) },
   { key: "manager_lead_name", label: "Manager/Lead", filter: "text", group: true, sortValue: (p) => dash(p.manager_lead_name), display: (p) => dash(p.manager_lead_name), filterText: (p) => dash(p.manager_lead_name) },
   { key: "start_date", label: "Start", filter: "text", group: true, sortValue: (p) => p.start_date, display: (p) => fmtDate(p.start_date), filterText: (p) => fmtDate(p.start_date) },
@@ -384,6 +384,7 @@ const hoursColumns: ColumnDef<ReportHoursRow>[] = [
   { key: "start_date", label: "Start Date", filter: "date-after", sortValue: (r) => r.start_date, display: (r) => fmtDate(r.start_date), filterText: (r) => fmtDate(r.start_date) },
   { key: "end_date", label: "End Date", filter: "date-before", sortValue: (r) => r.end_date, display: (r) => fmtDate(r.end_date), filterText: (r) => fmtDate(r.end_date) },
   { key: "hours_logged", label: "Logged Hours", align: "right", filter: "number-gt", sortValue: (r) => numSort(r.hours_logged), display: (r) => fmtHours(r.hours_logged), filterText: (r) => fmtHours(r.hours_logged) },
+  { key: "category", label: "Category", filter: "select", sortValue: (r) => r.category, display: (r) => r.category, filterText: (r) => r.category },
   { key: "source", label: "Source", filter: "select", sortValue: (r) => r.source, display: (r) => r.source, filterText: (r) => r.source },
 ];
 

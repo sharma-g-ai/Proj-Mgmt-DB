@@ -67,7 +67,7 @@ export async function gatherReportData(
 
     const { data: hRows } = await supabase
       .from("hours_log_entry")
-      .select("project_id, user_id, hours_logged, start_date, end_date, source, users(full_name)")
+      .select("project_id, user_id, hours_logged, start_date, end_date, source, category, users(full_name)")
       .in("project_id", ids)
       .order("start_date", { ascending: false });
     const hList = (hRows ?? []) as unknown as {
@@ -77,6 +77,7 @@ export async function gatherReportData(
       start_date: string;
       end_date: string;
       source: string;
+      category: string;
       users: { full_name: string } | null;
     }[];
     hours = hList.map((r) => ({
@@ -85,6 +86,7 @@ export async function gatherReportData(
       start_date: r.start_date,
       end_date: r.end_date,
       hours_logged: r.hours_logged,
+      category: r.category,
       source: r.source,
     }));
     // Finance atoms (admin only): the client pivots logged hours per month.

@@ -76,6 +76,7 @@ export async function buildXlsx(
       { header: "Start Date", key: "start_date", width: 12 },
       { header: "End Date", key: "end_date", width: 12 },
       { header: "Logged Hours", key: "hours_logged", width: 13 },
+      { header: "Category", key: "category", width: 14 },
       { header: "Source", key: "source", width: 10 },
     ],
     visible?.hours

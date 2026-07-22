@@ -1,16 +1,23 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
-import { useFormState } from "react-dom";
-import { addTeamMember, updateTeamMembers, removeTeamMember, type TeamMemberEdit } from "@/app/projects/actions";
+import { saveTeamChanges, removeTeamMember } from "@/app/projects/actions";
 import { ConfirmButton } from "@/components/ConfirmButton";
+import { ReasonModal } from "@/components/ReasonModal";
 import { isWeekend } from "@/lib/format";
-import type { TeamMemberRow, UserOption } from "@/lib/types";
+import type { NewMember, TeamMemberEdit, TeamMemberRow, UserOption } from "@/lib/types";
 
 type Edit = { start_date: string; end_date: string; allocated_hours: number };
+type Draft = { tempId: string; user_id: string; start_date: string; end_date: string; allocated_hours: number };
 
 function toEdit(m: TeamMemberRow): Edit {
   return { start_date: m.start_date, end_date: m.end_date, allocated_hours: m.allocated_hours };
+}
+
+let draftCounter = 0;
+function nextDraftId(): string {
+  draftCounter += 1;
+  return `draft-${draftCounter}`;
 }
 
 export function TeamSection({
@@ -28,10 +35,8 @@ export function TeamSection({
   defaultEnd: string;
   readOnly: boolean;
 }) {
-  const [state, formAction] = useFormState(addTeamMember.bind(null, projectId), undefined);
-
   // Local, per-row edits — reset from the server-fetched members whenever they
-  // change (after add/remove/save revalidates the page).
+  // change (after save/remove revalidates the page).
   const [edits, setEdits] = useState<Record<string, Edit>>(() =>
     Object.fromEntries(members.map((m) => [m.assignment_id, toEdit(m)]))
   );
@@ -39,24 +44,66 @@ export function TeamSection({
     setEdits(Object.fromEntries(members.map((m) => [m.assignment_id, toEdit(m)])));
   }, [members]);
 
+  // New, not-yet-saved rows — added via "+ Add row", cleared once the batch
+  // save succeeds (revalidation brings them back as real `members` rows).
+  const [drafts, setDrafts] = useState<Draft[]>([]);
+
   const [saving, startSaving] = useTransition();
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [saveMessage, setSaveMessage] = useState<string | null>(null);
+  const [needsReason, setNeedsReason] = useState(false);
 
   const dirty = members.filter((m) => {
     const e = edits[m.assignment_id];
     return e && (e.start_date !== m.start_date || e.end_date !== m.end_date || e.allocated_hours !== m.allocated_hours);
   });
+  const pendingCount = dirty.length + drafts.length;
 
   function setEdit(assignmentId: string, patch: Partial<Edit>) {
     setEdits((prev) => ({ ...prev, [assignmentId]: { ...prev[assignmentId], ...patch } }));
   }
 
-  function handleSave() {
+  function addDraftRow() {
+    setDrafts((prev) => [
+      ...prev,
+      { tempId: nextDraftId(), user_id: "", start_date: defaultStart, end_date: defaultEnd, allocated_hours: 0 },
+    ]);
+  }
+
+  function setDraft(tempId: string, patch: Partial<Draft>) {
+    setDrafts((prev) => prev.map((d) => (d.tempId === tempId ? { ...d, ...patch } : d)));
+  }
+
+  function removeDraft(tempId: string) {
+    setDrafts((prev) => prev.filter((d) => d.tempId !== tempId));
+  }
+
+  function handleSave(reason?: string) {
     setSaveError(null);
+    setSaveMessage(null);
+    const adds: NewMember[] = drafts.map((d) => ({
+      user_id: d.user_id,
+      start_date: d.start_date,
+      end_date: d.end_date,
+      allocated_hours: d.allocated_hours,
+    }));
+    if (adds.some((a) => !a.user_id)) {
+      setSaveError("Select a person for every new row.");
+      return;
+    }
     const updates: TeamMemberEdit[] = dirty.map((m) => ({ assignment_id: m.assignment_id, ...edits[m.assignment_id] }));
     startSaving(async () => {
-      const res = await updateTeamMembers(projectId, updates);
+      const res = await saveTeamChanges(projectId, adds, updates, reason);
+      if (res.needsReason) {
+        setNeedsReason(true);
+        return;
+      }
+      setNeedsReason(false);
       if (res.error) setSaveError(res.error);
+      else {
+        setDrafts([]);
+        if (res.message) setSaveMessage(res.message);
+      }
     });
   }
 
@@ -81,7 +128,7 @@ export function TeamSection({
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
-            {members.length === 0 && (
+            {members.length === 0 && drafts.length === 0 && (
               <tr>
                 <td colSpan={5} className="px-4 py-6 text-center text-gray-500">
                   No team members yet.
@@ -98,55 +145,51 @@ export function TeamSection({
                 readOnly={readOnly}
               />
             ))}
+            {!readOnly &&
+              drafts.map((d) => (
+                <DraftRow
+                  key={d.tempId}
+                  draft={d}
+                  activeUsers={activeUsers}
+                  onChange={(patch) => setDraft(d.tempId, patch)}
+                  onRemove={() => removeDraft(d.tempId)}
+                />
+              ))}
           </tbody>
         </table>
       </div>
 
-      {!readOnly && dirty.length > 0 && (
-        <div className="flex items-center gap-3 border-t border-gray-100 px-4 py-3">
+      {!readOnly && (
+        <div className="flex flex-wrap items-center gap-3 border-t border-gray-100 px-4 py-3">
           <button
             type="button"
-            onClick={handleSave}
-            disabled={saving}
-            className="rounded-md bg-brand-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-50"
+            onClick={addDraftRow}
+            className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm hover:bg-gray-50"
           >
-            {saving ? "Saving…" : `Save Changes (${dirty.length})`}
+            + Add row
           </button>
+          {pendingCount > 0 && (
+            <button
+              type="button"
+              onClick={() => handleSave()}
+              disabled={saving}
+              className="rounded-md bg-brand-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-50"
+            >
+              {saving ? "Saving…" : `Save Changes (${pendingCount})`}
+            </button>
+          )}
           {saveError && <p className="text-sm text-red-600">{saveError}</p>}
+          {saveMessage && <p className="text-sm text-blue-700">{saveMessage}</p>}
         </div>
       )}
 
-      {!readOnly && (
-        <form action={formAction} className="flex flex-wrap items-end gap-3 border-t border-gray-100 px-4 py-3">
-          <label className="flex flex-col gap-1 text-xs text-gray-500">
-            Person
-            <select name="user_id" required defaultValue="" className="rounded-md border border-gray-300 px-2 py-1.5 text-sm">
-              <option value="" disabled>Select person…</option>
-              {activeUsers.map((u) => (
-                <option key={u.user_id} value={u.user_id}>{u.full_name}</option>
-              ))}
-            </select>
-          </label>
-          <label className="flex flex-col gap-1 text-xs text-gray-500">
-            Start
-            <input type="date" name="start_date" required defaultValue={defaultStart}
-              className="rounded-md border border-gray-300 px-2 py-1.5 text-sm" />
-          </label>
-          <label className="flex flex-col gap-1 text-xs text-gray-500">
-            End
-            <input type="date" name="end_date" required defaultValue={defaultEnd}
-              className="rounded-md border border-gray-300 px-2 py-1.5 text-sm" />
-          </label>
-          <label className="flex flex-col gap-1 text-xs text-gray-500">
-            Man-hours
-            <input type="number" name="allocated_hours" required min="0.5" step="0.5"
-              className="w-28 rounded-md border border-gray-300 px-2 py-1.5 text-sm" />
-          </label>
-          <button className="rounded-md bg-brand-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-700">
-            + Add
-          </button>
-          {state?.error && <p className="w-full text-sm text-red-600">{state.error}</p>}
-        </form>
+      {needsReason && (
+        <ReasonModal
+          title="Reason for this allocation change"
+          pending={saving}
+          onCancel={() => setNeedsReason(false)}
+          onSubmit={(reason) => handleSave(reason)}
+        />
       )}
     </section>
   );
@@ -204,6 +247,53 @@ function MemberRow({
         >
           Remove
         </ConfirmButton>
+      </td>
+    </tr>
+  );
+}
+
+function DraftRow({
+  draft,
+  activeUsers,
+  onChange,
+  onRemove,
+}: {
+  draft: Draft;
+  activeUsers: UserOption[];
+  onChange: (patch: Partial<Draft>) => void;
+  onRemove: () => void;
+}) {
+  const weekendWarn = isWeekend(draft.start_date) || isWeekend(draft.end_date);
+  return (
+    <tr className="bg-brand-50/40">
+      <td className="px-4 py-2">
+        <select value={draft.user_id} onChange={(e) => onChange({ user_id: e.target.value })}
+          className="rounded-md border border-gray-300 px-2 py-1.5 text-sm">
+          <option value="" disabled>Select person…</option>
+          {activeUsers.map((u) => (
+            <option key={u.user_id} value={u.user_id}>{u.full_name}</option>
+          ))}
+        </select>
+      </td>
+      <td className="px-4 py-2">
+        <input type="date" value={draft.start_date} onChange={(e) => onChange({ start_date: e.target.value })}
+          className="rounded-md border border-gray-300 px-2 py-1 text-sm" />
+      </td>
+      <td className="px-4 py-2">
+        <input type="date" value={draft.end_date} onChange={(e) => onChange({ end_date: e.target.value })}
+          className="rounded-md border border-gray-300 px-2 py-1 text-sm" />
+      </td>
+      <td className="px-4 py-2">
+        <input type="number" value={draft.allocated_hours || ""} min="0.5" step="0.5"
+          onChange={(e) => onChange({ allocated_hours: Number(e.target.value) })}
+          className="w-24 rounded-md border border-gray-300 px-2 py-1 text-sm" />
+        {weekendWarn && <span className="ml-1 text-xs text-amber-600">weekend date</span>}
+      </td>
+      <td className="px-4 py-2">
+        <button type="button" onClick={onRemove}
+          className="rounded-md border border-gray-200 px-2 py-1 text-xs text-gray-600 hover:bg-gray-50">
+          Discard
+        </button>
       </td>
     </tr>
   );

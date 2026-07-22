@@ -8,12 +8,13 @@ import type { HoursEntryRow, TeamMemberRow } from "@/lib/types";
 
 export default async function ProjectHoursPage({ params }: { params: { id: string } }) {
   const { profile } = await requireActiveUser();
+  const isAdmin = profile.role === "Admin";
   const supabase = createClient();
 
   const [{ data: project }, { data: memberData }, { data: entryData }] = await Promise.all([
     supabase
       .from("project")
-      .select("project_id, project_name, is_archived")
+      .select("project_id, project_name, is_archived, is_organizational")
       .eq("project_id", params.id)
       .maybeSingle(),
     supabase
@@ -22,7 +23,7 @@ export default async function ProjectHoursPage({ params }: { params: { id: strin
       .eq("project_id", params.id),
     supabase
       .from("hours_log_entry")
-      .select("entry_id, user_id, hours_logged, start_date, end_date, source, users(full_name, email)")
+      .select("entry_id, user_id, hours_logged, start_date, end_date, source, category, users(full_name, email)")
       .eq("project_id", params.id)
       .order("start_date", { ascending: false }),
   ]);
@@ -32,15 +33,31 @@ export default async function ProjectHoursPage({ params }: { params: { id: strin
   const members = (memberData ?? []) as unknown as TeamMemberRow[];
   const entries = (entryData ?? []) as unknown as HoursEntryRow[];
 
-  // Hours can only be logged for this project's team members (Spec 05 §4.3).
-  const teamOptions = Array.from(
-    new Map(
-      members.map((m) => [
-        m.user_id,
-        { user_id: m.user_id, name: m.users?.full_name ?? "Unknown (pending user)" },
-      ])
-    ).values()
-  );
+  // Hours can only be logged for this project's team members (Spec 05 §4.3) —
+  // except organizational entries, which have no roster requirement at all
+  // and are open to any active user (Spec 05 §4.3 addendum).
+  let teamOptions: { user_id: string; name: string }[];
+  if (project.is_organizational) {
+    const { data: allUsers } = await supabase
+      .from("users")
+      .select("user_id, full_name")
+      .eq("is_active", true)
+      .order("full_name");
+    teamOptions = (allUsers ?? []).map((u) => ({ user_id: u.user_id, name: u.full_name }));
+  } else {
+    teamOptions = Array.from(
+      new Map(
+        members.map((m) => [
+          m.user_id,
+          { user_id: m.user_id, name: m.users?.full_name ?? "Unknown (pending user)" },
+        ])
+      ).values()
+    );
+  }
+
+  // Editing/deleting an existing entry on an organizational project stays
+  // Admin-only (no "logged by" column to scope a Manager-Lead to their own).
+  const editableEntries = isAdmin || !project.is_organizational;
 
   return (
     <div className="min-h-screen">
@@ -67,6 +84,7 @@ export default async function ProjectHoursPage({ params }: { params: { id: strin
           entries={entries}
           teamOptions={teamOptions}
           readOnly={project.is_archived}
+          editableEntries={editableEntries}
         />
       </main>
     </div>

@@ -20,10 +20,12 @@ The Dashboard is a distinct, lightweight landing screen — separate from the fu
 - Count of projects by Priority.
 - Average % Completion across active (non-archived) visible projects.
 - Count of projects with an "OVER" badge (completion >100%) — surfaced prominently since v1 has no dedicated risk-flagging system (per Spec 02 §3).
+- **Excludes organizational entries** (`Project.is_organizational = true`, Spec 01 §2.2) — these have no meaningful completion/estimate semantics and would skew the tallies.
 
 ### 2.2 Recent/At-a-Glance Project Cards (Manager-Lead) / Manager Summary (Admin)
 - **Manager-Lead**: a compact card list of the user's own visible projects (not the full sortable/filterable table — that lives on the Project List screen), showing Name, Status, % Completion, and a link into the Project Detail screen.
 - **Admin**: since Admin's project list is org-wide (a card-per-project view doesn't scale/summarize well), this slot instead shows a **Manager/Lead → Project Count** table — how many projects each Manager/Lead currently owns, at a glance. A Manager/Lead's own equivalent would be a trivial one-row view (they only ever see themselves as lead), so they keep the card list instead.
+- Both views **exclude organizational entries**, same as §2.1.
 
 ### 2.3 Resource Utilization Table
 - Grid: Team Members (rows) × **Total Projects** (distinct projects the person is committed to this week, within the visible project set) × **Load (all)** (org-wide committed hours vs. weekly capacity, as a man-hours delta).

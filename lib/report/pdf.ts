@@ -27,7 +27,7 @@ export async function buildPdf(data: ReportData): Promise<Buffer> {
 
   // ---- Portfolio summary ----
   const statusCounts = tally(data.projects.map((p) => p.status_label ?? "—"));
-  const priorityCounts = tally(data.projects.map((p) => p.priority));
+  const priorityCounts = tally(data.projects.map((p) => p.priority ?? "—"));
   const completions = data.projects
     .map((p) => p.pct_completion)
     .filter((v): v is number => v != null);
@@ -80,7 +80,7 @@ function projectBlock(doc: PDFKit.PDFDocument, p: ProjectMetrics, data: ReportDa
   const rows: [string, string][] = [
     ["Stakeholder", p.stakeholder],
     ["Type", p.project_type_label ?? "—"],
-    ["Priority", p.priority],
+    ["Priority", p.priority ?? "—"],
     ["Status", p.status_label ?? "—"],
     ["Manager/Lead", p.manager_lead_name ?? "—"],
     ["Start → End", `${fmtDate(p.start_date)} → ${fmtDate(p.planned_end_date)}`],

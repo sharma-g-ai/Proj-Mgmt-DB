@@ -73,6 +73,7 @@ export default async function EditProjectPage({ params }: { params: { id: string
             status_detail: project.status_detail,
             jira_url: project.jira_url,
             drive_url: project.drive_url,
+            is_organizational: project.is_organizational,
           }}
           cancelHref={`/projects/${params.id}`}
         />
