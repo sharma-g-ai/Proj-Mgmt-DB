@@ -83,15 +83,31 @@ export async function buildXlsx(
   );
   for (const h of data.hours) s2.addRow(h);
 
-  const sheets = [s1, s2];
+  // Sheet 3 — Team Allocation (one row per ProjectTeamMember entry; Spec 08 §3.2).
+  // Mirrors the on-screen Allocation tab's underlying rows — that tab is a static
+  // heatmap, not a DataTable, so (unlike Projects/Hours/Finance) there's no
+  // column-visibility picker to thread through here.
+  const s3 = wb.addWorksheet("Team Allocation");
+  s3.columns = [
+    { header: "Project", key: "project_name", width: 24 },
+    { header: "Person", key: "person", width: 20 },
+    { header: "Start Date", key: "start_date", width: 12 },
+    { header: "End Date", key: "end_date", width: 12 },
+    { header: "Man-hours", key: "allocated_hours", width: 12 },
+  ];
+  for (const t of data.team) {
+    s3.addRow({ ...t, allocated_hours: num(t.allocated_hours) });
+  }
 
-  // Sheet 3 — Finance (admin only): person × project allocated man-hours pivot for
+  const sheets = [s1, s2, s3];
+
+  // Sheet 4 — Finance (admin only): person × project allocated man-hours pivot for
   // the selected month. Sheet name carries the month (Excel caps names at 31 chars).
   if (data.finance.length > 0) {
     const suffix = financeMonthLabel ? ` (${financeMonthLabel})` : "";
     const name = `Finance${suffix}`.slice(0, 31);
-    const s3 = wb.addWorksheet(name);
-    s3.columns = pick(
+    const s4 = wb.addWorksheet(name);
+    s4.columns = pick(
       [
         { header: "Employee ID", key: "employee_id", width: 14 },
         { header: "Employee Name", key: "name", width: 22 },
@@ -102,7 +118,7 @@ export async function buildXlsx(
       visible?.finance
     );
     for (const f of data.finance) {
-      s3.addRow({
+      s4.addRow({
         employee_id: f.employee_id ?? "",
         name: f.name,
         role_label: f.role_label,
@@ -110,7 +126,7 @@ export async function buildXlsx(
         total: num(f.total),
       });
     }
-    sheets.push(s3);
+    sheets.push(s4);
   }
 
   for (const ws of sheets) {
