@@ -49,6 +49,7 @@ export function UserForm({
           <select name="role" value={role} onChange={(e) => setRole(e.target.value)} className="input">
             <option value="">— None (no access)</option>
             <option value="Manager-Lead">Manager-Lead</option>
+            <option value="InfraOps">InfraOps</option>
             <option value="Admin">Admin</option>
           </select>
           <span className="mt-1 block text-xs text-gray-500">

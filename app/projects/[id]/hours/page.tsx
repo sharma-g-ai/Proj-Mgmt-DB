@@ -1,6 +1,6 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
-import { requireActiveUser } from "@/lib/auth";
+import { notFound, redirect } from "next/navigation";
+import { requireActiveUser, isInfraOpsRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { AppHeader } from "@/components/AppHeader";
 import { HoursSection } from "@/components/HoursSection";
@@ -8,6 +8,7 @@ import type { HoursEntryRow, TeamMemberRow } from "@/lib/types";
 
 export default async function ProjectHoursPage({ params }: { params: { id: string } }) {
   const { profile } = await requireActiveUser();
+  if (isInfraOpsRole(profile)) redirect(`/projects/${params.id}/infra`);
   const isAdmin = profile.role === "Admin";
   const supabase = createClient();
 

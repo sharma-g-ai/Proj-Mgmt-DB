@@ -127,6 +127,8 @@ export async function updateProject(
     planned_end_date: str(form, "planned_end_date"),
     estimated_effort_hrs: Number(str(form, "estimated_effort_hrs")),
     status_detail: str(form, "status_detail") || null,
+    // Billing tool (provider_id) is set on InfraSpecs — do not overwrite here.
+    ownership_option_id: str(form, "ownership_option_id") || null,
   };
 
   if (!payload.project_name) return { error: "Project Name is required." };

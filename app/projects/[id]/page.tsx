@@ -1,6 +1,6 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
-import { requireActiveUser } from "@/lib/auth";
+import { notFound, redirect } from "next/navigation";
+import { requireActiveUser, canManageInfra, isInfraOpsRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { AppHeader } from "@/components/AppHeader";
 import { TeamSection } from "@/components/TeamSection";
@@ -11,8 +11,15 @@ import { fmtPct, fmtHours, fmtDate } from "@/lib/format";
 import type { ProjectMetrics, TeamMemberRow, UserOption } from "@/lib/types";
 
 export default async function ProjectDetailPage({ params }: { params: { id: string } }) {
-  const { profile } = await requireActiveUser();
+  const { userId, profile } = await requireActiveUser();
+
+  // InfraOps works only on InfraSpecs — skip the PM project dashboard.
+  if (isInfraOpsRole(profile)) {
+    redirect(`/projects/${params.id}/infra`);
+  }
+
   const isAdmin = profile.role === "Admin";
+  const manageInfra = canManageInfra(profile);
   const supabase = createClient();
 
   // Fetch metrics, members and the people directory in parallel (independent).
@@ -34,6 +41,8 @@ export default async function ProjectDetailPage({ params }: { params: { id: stri
   // them, via the "Log time" link below, which isn't gated by this flag.
   const isOrgViewerNonAdmin = project.is_organizational && !isAdmin;
   const readOnly = project.is_archived || isOrgViewerNonAdmin;
+  const showInfra =
+    manageInfra || project.manager_lead_id === userId;
 
   const members = (memberData ?? []) as unknown as TeamMemberRow[];
   const pendingRequests = await getPendingChangeRequests(project.project_id);
@@ -65,6 +74,12 @@ export default async function ProjectDetailPage({ params }: { params: { id: stri
                 className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm hover:bg-gray-50">
                 Log time
               </Link>
+              {showInfra && (
+                <Link href={`/projects/${project.project_id}/infra`}
+                  className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm hover:bg-gray-50">
+                  InfraSpecs
+                </Link>
+              )}
               {!readOnly && (
                 <>
                   <Link href={`/projects/${project.project_id}/edit`}

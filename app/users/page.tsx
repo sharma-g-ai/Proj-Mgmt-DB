@@ -64,7 +64,7 @@ export default async function UsersPage({ searchParams }: { searchParams: Search
 
         <form method="get" className="mb-4 flex flex-wrap items-end gap-3">
           <Filter name="role" label="Access" value={searchParams.role}
-            options={["Admin", "Manager-Lead"]} />
+            options={["Admin", "Manager-Lead", "InfraOps"]} />
           <Filter name="status" label="Status" value={searchParams.status}
             options={["Active", "Pending", "Deactivated"]} />
           <button className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm hover:bg-gray-50">

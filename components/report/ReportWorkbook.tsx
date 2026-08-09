@@ -13,8 +13,21 @@ import type {
   FinancePerson,
   FinanceHours,
 } from "@/lib/report/types";
+import {
+  buildInfraBillingRows,
+  buildInfraBillingSheets,
+  billingMonthBucket,
+  collectBillingMonths,
+  UNKNOWN_BILLING_MONTH,
+  type InfraBillingInvoiceAtom,
+  type InfraBillingRow,
+  type InfraBillingToolSheet,
+} from "@/lib/report/infraBilling";
+import { InfraBillingMatrix } from "@/components/report/InfraBillingMatrix";
 
-type Tab = "projects" | "hours" | "allocation" | "finance";
+const ALL_TIME = "all";
+
+type Tab = "projects" | "hours" | "allocation" | "finance" | "infrabilling";
 
 // Interactive, Excel-like report. Loads the full RLS-scoped dataset once, filters
 // and sorts client-side, and exports exactly the rows currently shown (Spec 08).
@@ -26,8 +39,11 @@ export function ReportWorkbook({
   financePeople,
   financeHours,
   financeProjects,
+  infraBillingAtoms,
   scopeLabel,
   isAdmin,
+  infraOnly = false,
+  canViewInfraBilling,
 }: {
   projects: ProjectMetrics[]; // feeds the Allocation tab (one row per project)
   projectRows: ReportProjectRow[];
@@ -36,10 +52,16 @@ export function ReportWorkbook({
   financePeople: FinancePerson[]; // admin-only
   financeHours: FinanceHours[]; // admin-only; logged entries pivoted per month on the client
   financeProjects: string[]; // ordered project-name columns for the Finance pivot
+  infraBillingAtoms: InfraBillingInvoiceAtom[];
   scopeLabel: string;
   isAdmin: boolean;
+  /** InfraOps: only InfraBilling tab is available. */
+  infraOnly?: boolean;
+  canViewInfraBilling: boolean;
 }) {
-  const [tab, setTab] = useState<Tab>("projects");
+  const [tab, setTab] = useState<Tab>(
+    infraOnly && canViewInfraBilling ? "infrabilling" : "projects"
+  );
   const [busy, setBusy] = useState<"pdf" | "xlsx" | "both" | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -48,7 +70,10 @@ export function ReportWorkbook({
   const resolvedProjects = useRef<ReportProjectRow[]>(projectRows);
   const resolvedHours = useRef<ReportHoursRow[]>(hours);
   const resolvedFinance = useRef<FinanceRow[]>([]); // populated by FinanceTab
+  const resolvedInfraBilling = useRef<InfraBillingRow[]>([]);
+  const resolvedInfraBillingSheets = useRef<InfraBillingToolSheet[]>([]);
   const financeMonthLabel = useRef<string>("");
+  const infraBillingMonths = useRef<string[]>([]);
 
   const onProjects = useCallback((r: ReportProjectRow[]) => {
     resolvedProjects.current = r;
@@ -62,11 +87,20 @@ export function ReportWorkbook({
   const onFinanceMonth = useCallback((label: string) => {
     financeMonthLabel.current = label;
   }, []);
+  const onInfraBilling = useCallback(
+    (sheets: InfraBillingToolSheet[], rows: InfraBillingRow[], months: string[]) => {
+      resolvedInfraBillingSheets.current = sheets;
+      resolvedInfraBilling.current = rows;
+      infraBillingMonths.current = months;
+    },
+    []
+  );
 
   // Visible column keys per tab (drives which columns the export includes).
   const visibleProjects = useRef<string[]>(projectColumns.map((c) => c.key));
   const visibleHours = useRef<string[]>(hoursColumns.map((c) => c.key));
   const visibleFinance = useRef<string[]>([]); // set by FinanceTab's DataTable on mount
+  const visibleInfraBilling = useRef<string[]>([]);
   const onProjectsCols = useCallback((k: string[]) => {
     visibleProjects.current = k;
   }, []);
@@ -76,6 +110,9 @@ export function ReportWorkbook({
   const onFinanceCols = useCallback((k: string[]) => {
     visibleFinance.current = k;
   }, []);
+  const onInfraBillingCols = useCallback((k: string[]) => {
+    visibleInfraBilling.current = k;
+  }, []);
 
   async function fetchAndSave(format: "pdf" | "xlsx") {
     const res = await fetch("/api/report", {
@@ -84,16 +121,20 @@ export function ReportWorkbook({
       body: JSON.stringify({
         format,
         scopeLabel,
-        projectRows: resolvedProjects.current,
-        team, // full roster, for the PDF's per-project team lists
-        hours: resolvedHours.current,
-        finance: resolvedFinance.current,
-        financeProjects,
+        projectRows: infraOnly ? [] : resolvedProjects.current,
+        team: infraOnly ? [] : team,
+        hours: infraOnly ? [] : resolvedHours.current,
+        finance: infraOnly ? [] : resolvedFinance.current,
+        financeProjects: infraOnly ? [] : financeProjects,
         financeMonthLabel: financeMonthLabel.current,
+        infraBilling: resolvedInfraBilling.current,
+        infraBillingSheets: resolvedInfraBillingSheets.current,
+        infraBillingMonths: infraBillingMonths.current,
         visibleColumns: {
-          projects: visibleProjects.current,
-          hours: visibleHours.current,
-          finance: visibleFinance.current,
+          projects: infraOnly ? [] : visibleProjects.current,
+          hours: infraOnly ? [] : visibleHours.current,
+          finance: infraOnly ? [] : visibleFinance.current,
+          infrabilling: visibleInfraBilling.current,
         },
       }),
     });
@@ -134,18 +175,27 @@ export function ReportWorkbook({
       {/* Tabs + download actions */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex gap-1 rounded-lg border border-gray-200 bg-gray-50 p-1 text-sm">
-          <TabButton active={tab === "projects"} onClick={() => setTab("projects")} dot="bg-brand-500">
-            Projects
-          </TabButton>
-          <TabButton active={tab === "hours"} onClick={() => setTab("hours")} dot="bg-amber-500">
-            Logged Hours
-          </TabButton>
-          <TabButton active={tab === "allocation"} onClick={() => setTab("allocation")} dot="bg-sky-500">
-            Allocation
-          </TabButton>
-          {isAdmin && (
-            <TabButton active={tab === "finance"} onClick={() => setTab("finance")} dot="bg-emerald-500">
-              Finance
+          {!infraOnly && (
+            <>
+              <TabButton active={tab === "projects"} onClick={() => setTab("projects")} dot="bg-brand-500">
+                Projects
+              </TabButton>
+              <TabButton active={tab === "hours"} onClick={() => setTab("hours")} dot="bg-amber-500">
+                Logged Hours
+              </TabButton>
+              <TabButton active={tab === "allocation"} onClick={() => setTab("allocation")} dot="bg-sky-500">
+                Allocation
+              </TabButton>
+              {isAdmin && (
+                <TabButton active={tab === "finance"} onClick={() => setTab("finance")} dot="bg-emerald-500">
+                  Finance
+                </TabButton>
+              )}
+            </>
+          )}
+          {canViewInfraBilling && (
+            <TabButton active={tab === "infrabilling"} onClick={() => setTab("infrabilling")} dot="bg-violet-500">
+              InfraBilling
             </TabButton>
           )}
         </div>
@@ -169,43 +219,59 @@ export function ReportWorkbook({
       {error && <p className="text-sm text-red-600">{error}</p>}
       <p className="text-xs text-gray-500">
         Sort by any column header, filter under it. Downloads match the current view —
-        {isAdmin ? " scoped to all projects." : " scoped to the projects you lead."}
+        {infraOnly
+          ? " Infra Billing across all projects."
+          : isAdmin
+            ? " scoped to all projects."
+            : " scoped to the projects you lead."}
       </p>
 
       {/* All tabs mounted; hide inactive so each keeps its filters/sort and reports
           its resolved rows for export. */}
-      <div className={tab === "projects" ? "" : "hidden"}>
-        <DataTable
-          rows={projectRows}
-          columns={projectColumns}
-          initialFilters={{ is_archived: "No" }}
-          onResolved={onProjects}
-          onVisibleColumnsChange={onProjectsCols}
-          groupBy={(r) => r.project_id}
-          emptyMessage="No projects match."
-        />
-      </div>
-      <div className={tab === "hours" ? "" : "hidden"}>
-        <DataTable
-          rows={hours}
-          columns={hoursColumns}
-          onResolved={onHours}
-          onVisibleColumnsChange={onHoursCols}
-          emptyMessage="No hours logged."
-        />
-      </div>
-      <div className={tab === "allocation" ? "" : "hidden"}>
-        <AllocationTab projects={projects} team={team} />
-      </div>
-      {isAdmin && (
-        <div className={tab === "finance" ? "" : "hidden"}>
-          <FinanceTab
-            people={financePeople}
-            hours={financeHours}
-            projects={financeProjects}
-            onResolved={onFinance}
-            onVisibleColumnsChange={onFinanceCols}
-            onMonthLabel={onFinanceMonth}
+      {!infraOnly && (
+        <>
+          <div className={tab === "projects" ? "" : "hidden"}>
+            <DataTable
+              rows={projectRows}
+              columns={projectColumns}
+              initialFilters={{ is_archived: "No" }}
+              onResolved={onProjects}
+              onVisibleColumnsChange={onProjectsCols}
+              groupBy={(r) => r.project_id}
+              emptyMessage="No projects match."
+            />
+          </div>
+          <div className={tab === "hours" ? "" : "hidden"}>
+            <DataTable
+              rows={hours}
+              columns={hoursColumns}
+              onResolved={onHours}
+              onVisibleColumnsChange={onHoursCols}
+              emptyMessage="No hours logged."
+            />
+          </div>
+          <div className={tab === "allocation" ? "" : "hidden"}>
+            <AllocationTab projects={projects} team={team} />
+          </div>
+          {isAdmin && (
+            <div className={tab === "finance" ? "" : "hidden"}>
+              <FinanceTab
+                people={financePeople}
+                hours={financeHours}
+                projects={financeProjects}
+                onResolved={onFinance}
+                onVisibleColumnsChange={onFinanceCols}
+                onMonthLabel={onFinanceMonth}
+              />
+            </div>
+          )}
+        </>
+      )}
+      {canViewInfraBilling && (
+        <div className={tab === "infrabilling" ? "" : "hidden"}>
+          <InfraBillingTab
+            atoms={infraBillingAtoms}
+            onResolved={onInfraBilling}
           />
         </div>
       )}
@@ -242,7 +308,6 @@ function TabButton({
 // month `<select>` recomputes each person's per-project logged hours from the raw
 // logged entries (each entry's range-total hours weekday-spread into the month)
 // plus a Total.
-const ALL_TIME = "all";
 function FinanceTab({
   people,
   hours,
@@ -414,4 +479,137 @@ function buildFinanceColumns(projectNames: string[]): ColumnDef<FinanceRow>[] {
     filterText: (r) => fmtHours(r.total),
   };
   return [...fixed, ...projectCols, total];
+}
+
+function InfraBillingTab({
+  atoms,
+  onResolved,
+}: {
+  atoms: InfraBillingInvoiceAtom[];
+  onResolved: (
+    sheets: InfraBillingToolSheet[],
+    rows: InfraBillingRow[],
+    months: string[]
+  ) => void;
+}) {
+  const availableMonths = useMemo(() => {
+    return collectBillingMonths(atoms).filter((m) => m !== UNKNOWN_BILLING_MONTH);
+  }, [atoms]);
+
+  const [fromMonth, setFromMonth] = useState<string>(ALL_TIME);
+  const [toMonth, setToMonth] = useState<string>(ALL_TIME);
+
+  // When data first loads, default timeline to full range.
+  useEffect(() => {
+    if (availableMonths.length === 0) return;
+    if (fromMonth === ALL_TIME && toMonth === ALL_TIME) {
+      setFromMonth(availableMonths[0]);
+      setToMonth(availableMonths[availableMonths.length - 1]);
+    }
+  }, [availableMonths]); // eslint-disable-line react-hooks/exhaustive-deps -- only seed once data arrives
+
+  const rangeFrom = fromMonth === ALL_TIME ? availableMonths[0] ?? "" : fromMonth;
+  const rangeTo = toMonth === ALL_TIME ? availableMonths[availableMonths.length - 1] ?? "" : toMonth;
+  const from = rangeFrom && rangeTo && rangeFrom > rangeTo ? rangeTo : rangeFrom;
+  const to = rangeFrom && rangeTo && rangeFrom > rangeTo ? rangeFrom : rangeTo;
+
+  const filteredAtoms = useMemo(() => {
+    if (!from || !to) return atoms;
+    return atoms.filter((a) => {
+      const m = billingMonthBucket(a.billing_period_start, a.billing_period_end);
+      if (m === UNKNOWN_BILLING_MONTH) {
+        // Keep unspecified rows only when the full available span is selected.
+        return (
+          availableMonths.length > 0 &&
+          from === availableMonths[0] &&
+          to === availableMonths[availableMonths.length - 1]
+        );
+      }
+      return m >= from && m <= to;
+    });
+  }, [atoms, from, to, availableMonths]);
+
+  const rangeMonths = useMemo(() => {
+    if (!from || !to) return collectBillingMonths(filteredAtoms);
+    const inRange = availableMonths.filter((m) => m >= from && m <= to);
+    const hasUnknown = filteredAtoms.some(
+      (a) =>
+        billingMonthBucket(a.billing_period_start, a.billing_period_end) ===
+        UNKNOWN_BILLING_MONTH
+    );
+    return hasUnknown ? [...inRange, UNKNOWN_BILLING_MONTH] : inRange;
+  }, [availableMonths, from, to, filteredAtoms]);
+
+  const sheets = useMemo(() => {
+    const built = buildInfraBillingSheets(filteredAtoms);
+    if (built.length === 0) return built;
+    // Pad timeline so empty months in the selected range still appear as rows.
+    return [{ ...built[0], months: rangeMonths.length ? rangeMonths : built[0].months }];
+  }, [filteredAtoms, rangeMonths]);
+
+  const rows = useMemo(() => buildInfraBillingRows(filteredAtoms), [filteredAtoms]);
+
+  useEffect(() => {
+    onResolved(sheets, rows, rangeMonths);
+  }, [sheets, rows, rangeMonths, onResolved]);
+
+  function setFrom(v: string) {
+    setFromMonth(v);
+    if (v !== ALL_TIME && toMonth !== ALL_TIME && v > toMonth) setToMonth(v);
+  }
+  function setTo(v: string) {
+    setToMonth(v);
+    if (v !== ALL_TIME && fromMonth !== ALL_TIME && v < fromMonth) setFromMonth(v);
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center gap-3 text-sm text-gray-600">
+        <span className="font-medium text-gray-700">Timeline</span>
+        <label className="flex items-center gap-2">
+          From
+          <input
+            type="month"
+            value={from && from !== ALL_TIME ? from : ""}
+            min={availableMonths[0]}
+            max={availableMonths[availableMonths.length - 1]}
+            onChange={(e) => setFrom(e.target.value || ALL_TIME)}
+            className="rounded-md border border-gray-300 bg-white px-2 py-1.5 text-sm"
+          />
+        </label>
+        <label className="flex items-center gap-2">
+          To
+          <input
+            type="month"
+            value={to && to !== ALL_TIME ? to : ""}
+            min={availableMonths[0]}
+            max={availableMonths[availableMonths.length - 1]}
+            onChange={(e) => setTo(e.target.value || ALL_TIME)}
+            className="rounded-md border border-gray-300 bg-white px-2 py-1.5 text-sm"
+          />
+        </label>
+        <button
+          type="button"
+          onClick={() => {
+            if (availableMonths.length === 0) {
+              setFromMonth(ALL_TIME);
+              setToMonth(ALL_TIME);
+              return;
+            }
+            setFromMonth(availableMonths[0]);
+            setToMonth(availableMonths[availableMonths.length - 1]);
+          }}
+          className="rounded-md border border-gray-300 bg-white px-2.5 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
+        >
+          All months
+        </button>
+        {from && to && (
+          <span className="text-xs text-gray-500">
+            {fmtMonthLabel(from)} – {fmtMonthLabel(to)}
+          </span>
+        )}
+      </div>
+      <InfraBillingMatrix sheets={sheets} />
+    </div>
+  );
 }

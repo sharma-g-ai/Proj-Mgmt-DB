@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { requireActiveUser } from "@/lib/auth";
+import { requireActiveUser, isInfraOpsRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { AppHeader } from "@/components/AppHeader";
 import { ProjectRow } from "@/components/projects/ProjectRow";
@@ -26,6 +26,7 @@ export default async function ProjectsPage({
 }) {
   const { profile } = await requireActiveUser();
   const isAdmin = profile.role === "Admin";
+  const isInfraOps = isInfraOpsRole(profile);
   const supabase = createClient();
 
   const showArchived = searchParams.archived === "1";
@@ -107,12 +108,14 @@ export default async function ProjectsPage({
       <main className="mx-auto max-w-6xl px-4 py-8">
         <div className="mb-6 flex items-center justify-between">
           <h1 className="text-xl font-semibold tracking-tight">Projects</h1>
-          <Link
-            href="/projects/new"
-            className="rounded-md bg-brand-600 px-3 py-2 text-sm font-medium text-white hover:bg-brand-700"
-          >
-            + New Project
-          </Link>
+          {isAdmin && (
+            <Link
+              href="/projects/new"
+              className="rounded-md bg-brand-600 px-3 py-2 text-sm font-medium text-white hover:bg-brand-700"
+            >
+              + New Project
+            </Link>
+          )}
         </div>
 
         {/* Filters (Spec 05 §2) — server-rendered GET form */}
@@ -167,6 +170,10 @@ export default async function ProjectsPage({
                   key={p.project_id}
                   isAdmin={isAdmin}
                   teamOptions={teamByProject.get(p.project_id) ?? []}
+                  projectHref={
+                    isInfraOps ? `/projects/${p.project_id}/infra` : undefined
+                  }
+                  hideHours={isInfraOps}
                   project={{
                     project_id: p.project_id,
                     project_name: p.project_name,

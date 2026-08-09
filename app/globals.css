@@ -32,4 +32,40 @@ body {
   .input:focus {
     @apply border-brand-500 outline-none ring-2 ring-brand-500/40;
   }
+
+  /* Invoice extract progress bar — soft shimmer while waiting on the server. */
+  .extract-progress-track {
+    @apply relative h-2 overflow-hidden rounded-full bg-slate-100;
+  }
+  .extract-progress-fill {
+    @apply h-full rounded-full bg-gradient-to-r from-slate-700 via-brand-500 to-slate-700;
+    background-size: 200% 100%;
+    animation: extract-shimmer 1.4s ease-in-out infinite;
+    transition: width 0.25s ease-out;
+  }
+}
+
+@keyframes extract-shimmer {
+  0% {
+    background-position: 100% 0;
+  }
+  100% {
+    background-position: -100% 0;
+  }
+}
+
+@keyframes extract-pulse-dot {
+  0%,
+  100% {
+    opacity: 0.35;
+    transform: scale(0.85);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.extract-pulse-dot {
+  animation: extract-pulse-dot 1.1s ease-in-out infinite;
 }

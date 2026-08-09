@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { requireActiveUser } from "@/lib/auth";
+import { redirect } from "next/navigation";
+import { requireActiveUser, isInfraOpsRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { AppHeader } from "@/components/AppHeader";
 import { ProjectForm } from "@/components/ProjectForm";
@@ -8,6 +9,7 @@ import type { LookupOption, UserOption } from "@/lib/types";
 
 export default async function NewProjectPage() {
   const { profile } = await requireActiveUser();
+  if (isInfraOpsRole(profile)) redirect("/projects");
   const isAdmin = profile.role === "Admin";
   const supabase = createClient();
 
