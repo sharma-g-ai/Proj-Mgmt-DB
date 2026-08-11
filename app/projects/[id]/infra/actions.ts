@@ -100,11 +100,15 @@ async function loadProjectBillingBinding(projectId: string): Promise<
   const provider_label = Array.isArray(providerRel)
     ? providerRel[0]?.label ?? null
     : providerRel?.label ?? null;
+  const accountIds = (accounts ?? []).map((a) => String(a.account_id));
+  // Account numbers on the project mean invoice restriction is active.
+  const enforce =
+    project.enforce_billing_accounts === true || accountIds.length > 0;
   return {
     provider_id: (project.provider_id as string | null) ?? null,
     provider_label,
-    accounts: (accounts ?? []).map((a) => String(a.account_id)),
-    enforce_billing_accounts: project.enforce_billing_accounts === true,
+    accounts: accountIds,
+    enforce_billing_accounts: enforce,
   };
 }
 
@@ -122,7 +126,7 @@ export async function saveProjectBillingSetup(
   const providerLabel = str(form, "provider_label").slice(0, 120);
   if (!providerLabel) return { error: "Choose a billing tool (e.g. AWS, E2E)." };
 
-  const enforce =
+  const toggleOn =
     form.get("enforce_billing_accounts") === "on" ||
     form.get("enforce_billing_accounts") === "true" ||
     form.get("enforce_billing_accounts") === "1";
@@ -145,13 +149,16 @@ export async function saveProjectBillingSetup(
     rows.push({ account_id, account_name });
   }
 
+  // Entering account numbers means restriction is on for this project.
+  const enforce = toggleOn || rows.length > 0;
+
   if (enforce) {
     if (rows.length === 0) {
-      return { error: "Account restriction is on — add at least one account number and name." };
+      return { error: "Add at least one account number and name to restrict invoices." };
     }
     const missingName = rows.find((r) => !r.account_name);
     if (missingName) {
-      return { error: "Account restriction is on — each account needs a number and a name." };
+      return { error: "Each account needs a number and a name." };
     }
   }
 
@@ -189,35 +196,31 @@ export async function saveProjectBillingSetup(
     return { error: flagErr.message };
   }
 
-  // Replace accounts only when restriction is on (or form submitted account rows).
-  // When restriction is off and no account fields were submitted, keep existing rows
-  // so turning the toggle back on does not lose the allow-list.
-  if (enforce || rows.length > 0) {
-    const { error: delErr } = await supabase
-      .from("project_billing_account")
-      .delete()
-      .eq("project_id", projectId);
-    if (delErr) {
-      const msg = delErr.message ?? "";
-      if (/project_billing_account|does not exist|schema cache/i.test(msg)) {
-        return {
-          error:
-            "Database migration not applied yet. In Supabase → SQL Editor, run migration 20260730000029_project_billing_accounts.sql, then try again.",
-        };
-      }
-      return { error: delErr.message };
+  // Always replace allow-list from the form. Restriction Off ⇒ clear accounts.
+  const { error: delErr } = await supabase
+    .from("project_billing_account")
+    .delete()
+    .eq("project_id", projectId);
+  if (delErr) {
+    const msg = delErr.message ?? "";
+    if (/project_billing_account|does not exist|schema cache/i.test(msg)) {
+      return {
+        error:
+          "Database migration not applied yet. In Supabase → SQL Editor, run migration 20260730000029_project_billing_accounts.sql, then try again.",
+      };
     }
+    return { error: delErr.message };
+  }
 
-    if (rows.length > 0) {
-      const { error: insErr } = await supabase.from("project_billing_account").insert(
-        rows.map((r) => ({
-          project_id: projectId,
-          account_id: r.account_id,
-          account_name: r.account_name,
-        }))
-      );
-      if (insErr) return { error: insErr.message };
-    }
+  if (enforce && rows.length > 0) {
+    const { error: insErr } = await supabase.from("project_billing_account").insert(
+      rows.map((r) => ({
+        project_id: projectId,
+        account_id: r.account_id,
+        account_name: r.account_name,
+      }))
+    );
+    if (insErr) return { error: insErr.message };
   }
 
   revalidatePath(`/projects/${projectId}/infra`);
@@ -242,10 +245,8 @@ export async function addProjectBillingAccount(
   if (!account_id) return { error: "Account number is required." };
   const account_name = str(form, "account_name").slice(0, 120) || null;
 
-  const binding = await loadProjectBillingBinding(projectId);
-  if ("error" in binding) return { error: binding.error };
-  if (binding.enforce_billing_accounts && !account_name) {
-    return { error: "Account restriction is on — account name is required." };
+  if (!account_name) {
+    return { error: "Account name is required when restricting invoices." };
   }
 
   const supabase = createClient();
@@ -258,8 +259,13 @@ export async function addProjectBillingAccount(
     if (error.code === "23505") return { error: "That account number is already on this project." };
     return { error: error.message };
   }
+  // Saving an account number turns restriction on for this project.
+  await supabase
+    .from("project")
+    .update({ enforce_billing_accounts: true })
+    .eq("project_id", projectId);
   revalidatePath(`/projects/${projectId}/infra`);
-  return { ok: true, message: "Account added." };
+  return { ok: true, message: "Account added — invoice restriction is on." };
 }
 
 export async function removeProjectBillingAccount(
@@ -272,17 +278,11 @@ export async function removeProjectBillingAccount(
     requireUuid(projectId, "project") || requireUuid(accountRowId, "account");
   if (bad) return { error: bad };
 
-  const binding = await loadProjectBillingBinding(projectId);
-  if ("error" in binding) return { error: binding.error };
-
   const supabase = createClient();
   const { count } = await supabase
     .from("project_billing_account")
     .select("account_row_id", { count: "exact", head: true })
     .eq("project_id", projectId);
-  if (binding.enforce_billing_accounts && (count ?? 0) <= 1) {
-    return { error: "Account restriction is on — keep at least one account, or turn the toggle off." };
-  }
 
   const { error } = await supabase
     .from("project_billing_account")
@@ -290,6 +290,14 @@ export async function removeProjectBillingAccount(
     .eq("project_id", projectId)
     .eq("account_row_id", accountRowId);
   if (error) return { error: error.message };
+
+  // Last account removed ⇒ restriction off.
+  if ((count ?? 0) <= 1) {
+    await supabase
+      .from("project")
+      .update({ enforce_billing_accounts: false })
+      .eq("project_id", projectId);
+  }
   revalidatePath(`/projects/${projectId}/infra`);
   return { ok: true, message: "Account removed." };
 }

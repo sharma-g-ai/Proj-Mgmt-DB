@@ -111,9 +111,9 @@ Aligned with migrations `0026` (InfraOps role) and `0027` (infra tables).
 
 ### 3.2a Project billing binding (tool + optional accounts)
 - **One billing tool per project** via `project.provider_id` → `infra_provider` (required for InfraSpecs uploads).
-- **`project.enforce_billing_accounts`** (boolean, default `false`) — toggle for account restriction.
-  - **Off:** any invoice can be uploaded for the project tool; no account allow-list check.
-  - **On:** at least one `project_billing_account` with **account number + account name**; after extract, if account is missing or not on the allow-list → **hard reject** (invoice deleted). Matching is trim + case-insensitive on `account_id`; `account_name` is display-only.
+- **`project.enforce_billing_accounts`** + allow-list — account restriction for the project.
+  - **Off:** tool only; any invoice can be uploaded; no allow-list.
+  - **On (or any saved `project_billing_account` rows):** invoices must match allow-listed account numbers or they are **rejected**. Entering account number + name at setup turns restriction on. Matching is trim + case-insensitive on `account_id`; `account_name` is display-only.
 - InfraOps/Admin set tool on first InfraSpecs visit (blocking modal). Account restriction toggle is optional there (and editable later). Manager-Lead sees a read-only incomplete banner until the tool is set.
 - Uploads are locked to the project tool.
 - **Month sheet / InfraBilling:** when a project has multiple allow-listed accounts, amounts are shown in **separate columns per account** (not summed into one monthly total).

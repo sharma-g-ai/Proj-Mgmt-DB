@@ -44,7 +44,8 @@ export function ProjectBillingSetupModal({
   const router = useRouter();
   const action = saveProjectBillingSetup.bind(null, projectId);
   const [state, formAction] = useFormState(action, undefined as ActionState);
-  const [enforce, setEnforce] = useState(initialEnforce);
+  // New projects: default On so InfraOps enter account #s for invoice restriction.
+  const [enforce, setEnforce] = useState(initialEnforce || true);
   const [accounts, setAccounts] = useState<{ account_id: string; account_name: string }[]>([
     { account_id: "", account_name: "" },
   ]);
@@ -63,11 +64,11 @@ export function ProjectBillingSetupModal({
       >
         <h2 id="billing-setup-title" className="text-base font-semibold text-gray-900">
           Set up project billing
-          <HelpTip text="Required once per project. Choose the billing tool used for uploads. Account restriction is optional." />
+          <HelpTip text="Choose the billing tool. If you add account numbers, invoice uploads for this project are restricted to those accounts." />
         </h2>
         <p className="mt-1 text-sm text-gray-600">
-          Choose the billing tool for this project. Turn on account restriction only if invoices
-          include account numbers you want to enforce.
+          Set the billing tool for this project. Adding account number(s) turns restriction{" "}
+          <span className="font-medium">On</span> — only matching invoices are kept.
         </p>
 
         <form action={formAction} className="mt-4 space-y-4">
@@ -104,12 +105,12 @@ export function ProjectBillingSetupModal({
               <span className="text-sm">
                 <span className="font-medium text-gray-900">
                   Restrict invoices by account number
-                  <HelpTip text="Off: any invoice can be uploaded. On: extracted account must match your allow-list or the upload is rejected." />
+                  <HelpTip text="On: enter account number + name; uploads must match or they are rejected. Off: tool only — any invoice can be uploaded." />
                 </span>
                 <span className="mt-0.5 block text-xs text-gray-600">
                   {enforce
-                    ? "On — add account number + name; mismatched invoices are rejected."
-                    : "Off — no account check on upload."}
+                    ? "On — enter account number + name for this project."
+                    : "Off — tool only; invoices are not filtered by account."}
                 </span>
               </span>
             </label>
@@ -266,7 +267,7 @@ export function ProjectBillingSummary({
           </h2>
           <p className="mt-0.5 text-xs text-gray-500">
             {shownEnforce
-              ? "Account restriction is on — mismatched account numbers are rejected."
+              ? "Account restriction is on — only invoices matching the allow-listed account numbers are kept."
               : "Account restriction is off — any invoice can be uploaded for this tool."}
             {editing && shownEnforce !== enforceBillingAccounts && (
               <span className="ml-1 font-medium text-amber-700">(unsaved)</span>

@@ -90,8 +90,10 @@ export default async function ProjectInfraPage({ params }: { params: { id: strin
     ? providerRel[0]?.label ?? null
     : providerRel?.label ?? null;
   const projectProviderId = (projectRow?.provider_id as string | null) ?? null;
-  const enforceBillingAccounts = projectRow?.enforce_billing_accounts === true;
-  // Tool is always required; account allow-list is optional (toggle).
+  // Any saved account number means restriction is on for this project.
+  const enforceBillingAccounts =
+    projectRow?.enforce_billing_accounts === true || accountRows.length > 0;
+  // Tool is always required; account allow-list is optional.
   const billingSetupComplete = !!projectProviderId;
 
   const invoiceIds = (invoices ?? []).map((i) => i.invoice_id as string);
