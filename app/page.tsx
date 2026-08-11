@@ -41,6 +41,11 @@ export default async function Home({
         {hasError && (
           <p className="mt-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">
             Sign-in failed. Please use your Amzur (@amzur.com) Google account.
+            {searchParams?.error && (
+              <span className="mt-1 block text-xs text-red-500/90 break-all">
+                Details: {searchParams.error}
+              </span>
+            )}
           </p>
         )}
 

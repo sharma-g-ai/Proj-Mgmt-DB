@@ -28,10 +28,16 @@ export function ProjectRow({
   project,
   isAdmin,
   teamOptions,
+  projectHref,
+  hideHours,
 }: {
   project: ProjectRowData;
   isAdmin: boolean;
   teamOptions: TeamOption[];
+  /** Override project link (e.g. InfraOps → InfraSpecs). */
+  projectHref?: string;
+  /** Hide log-hours / archive controls (InfraOps). */
+  hideHours?: boolean;
 }) {
   const readOnly = project.is_archived;
   const [open, setOpen] = useState(false);
@@ -39,6 +45,7 @@ export function ProjectRow({
   const [state, formAction] = useFormState(logHours.bind(null, project.project_id), undefined);
   const today = new Date().toISOString().slice(0, 10);
   const colSpan = isAdmin ? 6 : 5;
+  const href = projectHref ?? `/projects/${project.project_id}`;
 
   // Collapse once a log succeeds (the list revalidates and % Complete updates).
   useEffect(() => {
@@ -53,7 +60,7 @@ export function ProjectRow({
       {toast && <Toast message={toast} onDone={() => setToast(null)} />}
       <tr className={readOnly ? "bg-gray-50/60" : ""}>
         <td className="px-4 py-3">
-          <Link href={`/projects/${project.project_id}`} className="font-medium text-gray-900 hover:underline">
+          <Link href={href} className="font-medium text-gray-900 hover:underline">
             {project.project_name}
           </Link>
           {readOnly && (
@@ -76,46 +83,57 @@ export function ProjectRow({
         </td>
         <td className="px-4 py-3">
           <div className="flex items-center justify-end gap-2">
-            {!readOnly && (
-              <button
-                type="button"
-                onClick={() => setOpen((o) => !o)}
-                aria-expanded={open}
-                className="rounded-md border border-gray-300 bg-white px-2.5 py-1 text-xs hover:bg-gray-50"
-              >
-                Log hours {open ? "▴" : "▾"}
-              </button>
-            )}
-            {!readOnly ? (
-              <ConfirmButton
-                action={setArchived.bind(null, project.project_id, true)}
-                message={`Archive "${project.project_name}"? It becomes read-only.`}
-                className="rounded-md border border-red-200 bg-white px-2.5 py-1 text-xs text-red-600 hover:bg-red-50"
-              >
-                Archive
-              </ConfirmButton>
-            ) : isAdmin ? (
-              <ConfirmButton
-                action={setArchived.bind(null, project.project_id, false)}
-                message={`Unarchive "${project.project_name}"?`}
+            {hideHours ? (
+              <Link
+                href={href}
                 className="rounded-md border border-gray-300 bg-white px-2.5 py-1 text-xs text-gray-700 hover:bg-gray-50"
               >
-                Unarchive
-              </ConfirmButton>
+                InfraSpecs
+              </Link>
             ) : (
-              <span className="text-xs text-gray-400">Admin only</span>
+              <>
+                {!readOnly && (
+                  <button
+                    type="button"
+                    onClick={() => setOpen((o) => !o)}
+                    aria-expanded={open}
+                    className="rounded-md border border-gray-300 bg-white px-2.5 py-1 text-xs hover:bg-gray-50"
+                  >
+                    Log hours {open ? "▴" : "▾"}
+                  </button>
+                )}
+                {!readOnly ? (
+                  <ConfirmButton
+                    action={setArchived.bind(null, project.project_id, true)}
+                    message={`Archive "${project.project_name}"? It becomes read-only.`}
+                    className="rounded-md border border-red-200 bg-white px-2.5 py-1 text-xs text-red-600 hover:bg-red-50"
+                  >
+                    Archive
+                  </ConfirmButton>
+                ) : isAdmin ? (
+                  <ConfirmButton
+                    action={setArchived.bind(null, project.project_id, false)}
+                    message={`Unarchive "${project.project_name}"?`}
+                    className="rounded-md border border-gray-300 bg-white px-2.5 py-1 text-xs text-gray-700 hover:bg-gray-50"
+                  >
+                    Unarchive
+                  </ConfirmButton>
+                ) : (
+                  <span className="text-xs text-gray-400">Admin only</span>
+                )}
+              </>
             )}
           </div>
         </td>
       </tr>
 
-      {open && !readOnly && (
+      {open && !readOnly && !hideHours && (
         <tr className="bg-gray-50/70">
           <td colSpan={colSpan} className="px-4 py-3">
             {teamOptions.length === 0 ? (
               <p className="text-xs text-gray-500">
                 Add a team member first — hours can only be logged for this project&apos;s team.{" "}
-                <Link href={`/projects/${project.project_id}`} className="underline">
+                <Link href={href} className="underline">
                   Manage team
                 </Link>
               </p>

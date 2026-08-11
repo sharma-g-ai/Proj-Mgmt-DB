@@ -1,7 +1,7 @@
 // Shared domain types (mirrors Spec 01 entities + Spec 02 computed fields).
 
 export type Priority = "High" | "Medium" | "Low";
-export type UserRole = "Admin" | "Manager-Lead";
+export type UserRole = "Admin" | "Manager-Lead" | "InfraOps";
 export type HoursSource = "Manual" | "JIRA";
 export type HoursCategory = "Collaboration" | "Implementation";
 
@@ -43,6 +43,96 @@ export type ProjectMetrics = {
   planned_hours: number;
   working_days_remaining: number;
   allocation_pct: number | null; // planned_hours ÷ estimated_effort_hrs × 100
+  provider_id: string | null;
+  provider_label: string | null;
+  ownership_option_id: string | null;
+  ownership_label: string | null;
+};
+
+export type ProviderOption = { provider_id: string; label: string; is_active: boolean };
+export type OwnershipOption = { option_id: string; label: string; is_active: boolean };
+
+export type InfraResourceType = {
+  resource_type_id: string;
+  label: string;
+  is_active: boolean;
+};
+
+export type InfraResourceTypeAttribute = {
+  attribute_id: string;
+  resource_type_id: string;
+  attr_key: string;
+  label: string;
+  data_type: "text" | "number" | "boolean" | "date";
+  is_required: boolean;
+  sort_order: number;
+};
+
+export type InfraResourceRow = {
+  resource_id: string;
+  project_id: string;
+  resource_type_id: string;
+  name: string;
+  external_id: string | null;
+  attributes: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+  resource_type?: { label: string } | null;
+};
+
+export type InfraProcessingStatus = "pending" | "processing" | "parsed" | "failed";
+export type InfraValidationStatus = "unchecked" | "valid" | "invalid" | "partial";
+export type InfraDiscrepancySeverity = "info" | "warning" | "error";
+export type InfraDiscrepancyStatus = "open" | "acknowledged" | "resolved";
+
+export type InfraInvoiceRow = {
+  invoice_id: string;
+  project_id: string;
+  provider_id: string | null;
+  billing_period_start: string | null;
+  billing_period_end: string | null;
+  invoice_number: string | null;
+  currency: string | null;
+  amount_total: number | null;
+  storage_path: string;
+  original_filename: string | null;
+  mime_type: string | null;
+  processing_status: InfraProcessingStatus;
+  validation_status: InfraValidationStatus;
+  extracted_payload: Record<string, unknown>;
+  error_message: string | null;
+  uploaded_by: string | null;
+  created_at: string;
+  updated_at: string;
+  provider?: { label: string } | null;
+};
+
+export type InfraInvoiceLineRow = {
+  line_id: string;
+  invoice_id: string;
+  resource_id: string | null;
+  line_label: string | null;
+  resource_type_label: string | null;
+  quantity: number | null;
+  unit: string | null;
+  unit_cost: number | null;
+  amount: number | null;
+  attributes: Record<string, unknown>;
+  created_at: string;
+};
+
+export type InfraDiscrepancyRow = {
+  discrepancy_id: string;
+  invoice_id: string;
+  discrepancy_type: string;
+  severity: InfraDiscrepancySeverity;
+  message: string;
+  expected_value: string | null;
+  actual_value: string | null;
+  status: InfraDiscrepancyStatus;
+  metadata: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
 };
 
 export type LookupOption = { option_id: string; label: string; is_active: boolean };
@@ -102,8 +192,32 @@ export type AllocationRow = {
 // signals the write was NOT performed — the caller must collect a reason from
 // the user and resubmit with it before the change is staged (Spec 10).
 export type ActionState =
-  | { error?: string; ok?: boolean; message?: string; needsReason?: boolean }
+  | {
+      error?: string;
+      ok?: boolean;
+      message?: string;
+      needsReason?: boolean;
+      /** Soft warning (e.g. duplicate invoice) — shown as a popup, does not fail the action. */
+      warning?: string;
+      /** Out-of-scope lines found in this upload/extract batch (popup after completion only). */
+      outOfScopeCount?: number;
+      /** Invoice(s) need Proceed/Reject after billing account/tool mismatch or missing account. */
+      needsConfirm?: boolean;
+      confirmInvoiceIds?: string[];
+      confirmReason?: string;
+      confirmFiles?: string[];
+    }
   | undefined;
+
+/** Account number allow-listed for a project’s billing tool. */
+export type ProjectBillingAccount = {
+  account_row_id: string;
+  project_id: string;
+  account_id: string;
+  /** Optional display label; matching uses account_id only. */
+  account_name: string | null;
+  created_at: string;
+};
 
 // Approval flow (Spec 10) — Manager-Lead edits to Estimated Effort Hrs or to a
 // resource allocation that would exceed it are staged here instead of applied.

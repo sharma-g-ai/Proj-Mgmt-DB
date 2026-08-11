@@ -1,14 +1,15 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { requireActiveUser } from "@/lib/auth";
+import { requireActiveUser, isInfraOpsRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { AppHeader } from "@/components/AppHeader";
 import { ProjectForm } from "@/components/ProjectForm";
 import { updateProject } from "@/app/projects/actions";
-import type { LookupOption, UserOption } from "@/lib/types";
+import type { LookupOption, OwnershipOption, UserOption } from "@/lib/types";
 
 export default async function EditProjectPage({ params }: { params: { id: string } }) {
   const { profile } = await requireActiveUser();
+  if (isInfraOpsRole(profile)) redirect(`/projects/${params.id}/infra`);
   const isAdmin = profile.role === "Admin";
   const supabase = createClient();
 
@@ -22,9 +23,10 @@ export default async function EditProjectPage({ params }: { params: { id: string
   // Archived projects are read-only (Spec 05 §4.4).
   if (project.is_archived) redirect(`/projects/${params.id}`);
 
-  const [{ data: types }, { data: statuses }] = await Promise.all([
+  const [{ data: types }, { data: statuses }, { data: ownershipOptions }] = await Promise.all([
     supabase.from("project_type_option").select("option_id, label, is_active").eq("is_active", true).order("label"),
     supabase.from("status_option").select("option_id, label, is_active").eq("is_active", true).order("label"),
+    supabase.from("billing_ownership_option").select("option_id, label, is_active").eq("is_active", true).order("label"),
   ]);
 
   const leads = isAdmin
@@ -56,6 +58,7 @@ export default async function EditProjectPage({ params }: { params: { id: string
           types={(types ?? []) as LookupOption[]}
           statuses={(statuses ?? []) as LookupOption[]}
           leads={leads as UserOption[]}
+          ownershipOptions={(ownershipOptions ?? []) as OwnershipOption[]}
           isAdmin={isAdmin}
           currentUser={{ user_id: profile.user_id, full_name: profile.full_name }}
           initial={{
@@ -74,6 +77,7 @@ export default async function EditProjectPage({ params }: { params: { id: string
             jira_url: project.jira_url,
             drive_url: project.drive_url,
             is_organizational: project.is_organizational,
+            ownership_option_id: project.ownership_option_id,
           }}
           cancelHref={`/projects/${params.id}`}
         />

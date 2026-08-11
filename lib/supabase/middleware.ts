@@ -36,17 +36,26 @@ export async function updateSession(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  // Protect the app area: unauthenticated visitors are sent to the login screen.
+  // Protect the app area + API: unauthenticated visitors are sent to login
+  // (pages) or get 401 (API). Auth callback / signout stay public.
   const path = request.nextUrl.pathname;
-  const isProtected =
+  const isAuthPublic =
+    path.startsWith("/auth/callback") || path.startsWith("/auth/signout");
+  const isProtectedPage =
     path.startsWith("/dashboard") ||
     path.startsWith("/projects") ||
     path.startsWith("/users") ||
-    path.startsWith("/reports");
-  if (!user && isProtected) {
+    path.startsWith("/reports") ||
+    path.startsWith("/approvals");
+  const isProtectedApi = path.startsWith("/api/") && !isAuthPublic;
+
+  if (!user && isProtectedPage) {
     const url = request.nextUrl.clone();
     url.pathname = "/";
     return NextResponse.redirect(url);
+  }
+  if (!user && isProtectedApi) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   return supabaseResponse;

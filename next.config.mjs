@@ -4,7 +4,7 @@ const nextConfig = {
   // keep both external so they load from node_modules at runtime rather than
   // being processed by the bundler (which breaks pdfkit's font resolution).
   experimental: {
-    serverComponentsExternalPackages: ["pdfkit", "exceljs"],
+    serverComponentsExternalPackages: ["pdfkit", "exceljs", "unpdf"],
   },
 };
 

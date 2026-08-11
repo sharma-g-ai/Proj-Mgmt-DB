@@ -68,4 +68,10 @@ export type ReportData = {
   financePeople: FinancePerson[];
   financeHours: FinanceHours[];
   financeProjects: string[];
+  /** InfraBilling (Admin + InfraOps; ML sees RLS-scoped projects). */
+  infraBillingAtoms: import("@/lib/report/infraBilling").InfraBillingInvoiceAtom[];
+  /** Client-pivoted flat rows (compat) + Excel-style sheets on export POST. */
+  infraBilling: import("@/lib/report/infraBilling").InfraBillingRow[];
+  infraBillingSheets?: import("@/lib/report/infraBilling").InfraBillingToolSheet[];
+  infraBillingMonths: string[];
 };

@@ -4,7 +4,9 @@ import { useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { isWeekend } from "@/lib/format";
 import { ReasonModal } from "@/components/ReasonModal";
-import type { ActionState, LookupOption, UserOption } from "@/lib/types";
+import { LookupAddInline } from "@/components/infra/LookupAddInline";
+import { createOwnershipLookup } from "@/app/projects/[id]/infra/actions";
+import type { ActionState, LookupOption, OwnershipOption, UserOption } from "@/lib/types";
 
 type Initial = {
   project_name?: string;
@@ -22,6 +24,7 @@ type Initial = {
   planned_end_date?: string;
   estimated_effort_hrs?: number;
   status_detail?: string | null;
+  ownership_option_id?: string | null;
 };
 
 export function ProjectForm({
@@ -30,6 +33,7 @@ export function ProjectForm({
   types,
   statuses,
   leads,
+  ownershipOptions = [],
   isAdmin,
   currentUser,
   initial,
@@ -40,6 +44,8 @@ export function ProjectForm({
   types: LookupOption[];
   statuses: LookupOption[];
   leads: UserOption[];
+  /** Used on edit only — InfraBilling stakeholder grouping. */
+  ownershipOptions?: OwnershipOption[];
   isAdmin: boolean;
   currentUser: { user_id: string; full_name: string };
   initial?: Initial;
@@ -154,6 +160,32 @@ export function ProjectForm({
           Project Type, Priority, Status, Manager/Lead, JIRA Project Link, and Google Drive Link
           aren&apos;t relevant for organizational entries and are left blank.
         </p>
+      )}
+
+      {mode === "edit" && (
+        <Field label="Billing ownership / category">
+          <select
+            name="ownership_option_id"
+            defaultValue={initial?.ownership_option_id ?? ""}
+            className="input"
+          >
+            <option value="">— None</option>
+            {ownershipOptions.map((o) => (
+              <option key={o.option_id} value={o.option_id}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+          {ownershipOptions.length === 0 && (
+            <span className="mt-1 block text-xs text-amber-700">No ownership options yet.</span>
+          )}
+          {isAdmin && (
+            <LookupAddInline
+              action={createOwnershipLookup}
+              placeholder="Add ownership label…"
+            />
+          )}
+        </Field>
       )}
 
       <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">

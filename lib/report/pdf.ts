@@ -25,40 +25,117 @@ export async function buildPdf(data: ReportData): Promise<Buffer> {
   hr(doc, left, width);
   doc.moveDown(0.6);
 
-  // ---- Portfolio summary ----
-  const statusCounts = tally(data.projects.map((p) => p.status_label ?? "—"));
-  const priorityCounts = tally(data.projects.map((p) => p.priority ?? "—"));
-  const completions = data.projects
-    .map((p) => p.pct_completion)
-    .filter((v): v is number => v != null);
-  const avg = completions.length ? completions.reduce((a, b) => a + b, 0) / completions.length : null;
-  const overCount = data.projects.filter((p) => isOverrun(p.pct_completion)).length;
+  const hasPm = data.projects.length > 0;
+  const hasInfra =
+    data.infraBilling.length > 0 ||
+    (data.infraBillingSheets != null && data.infraBillingSheets.length > 0);
 
-  section(doc, "Portfolio Summary");
-  doc.font("Helvetica").fontSize(10).fillColor("#111827");
-  doc.text(`Projects in scope: ${data.projects.length}`);
-  doc.text(`Average % Completion: ${avg == null ? "—" : `${round1(avg)}%`}`);
-  doc.fillColor(overCount > 0 ? RED : "#111827").text(`Projects OVER 100%: ${overCount}`);
-  doc.fillColor("#111827");
-  doc.moveDown(0.6);
+  if (hasPm) {
+    // ---- Portfolio summary ----
+    const statusCounts = tally(data.projects.map((p) => p.status_label ?? "—"));
+    const completions = data.projects
+      .map((p) => p.pct_completion)
+      .filter((v): v is number => v != null);
+    const avg = completions.length ? completions.reduce((a, b) => a + b, 0) / completions.length : null;
+    const overCount = data.projects.filter((p) => isOverrun(p.pct_completion)).length;
 
-  // Charts: status distribution + man-hours by person.
-  barChart(doc, "Projects by Status", statusCounts, left, width / 2 - 10);
-  const hoursByPerson = tallySum(data.team.map((t) => [t.person, t.allocated_hours] as [string, number]))
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 10);
-  const chartY = doc.y;
-  doc.y = chartY; // second chart to the right of the first (approx side-by-side)
-  barChart(doc, "Man-hours by Person (recent)", hoursByPerson, left + width / 2 + 10, width / 2 - 10, chartY - chartHeight(statusCounts.length));
+    section(doc, "Portfolio Summary");
+    doc.font("Helvetica").fontSize(10).fillColor("#111827");
+    doc.text(`Projects in scope: ${data.projects.length}`);
+    doc.text(`Average % Completion: ${avg == null ? "—" : `${round1(avg)}%`}`);
+    doc.fillColor(overCount > 0 ? RED : "#111827").text(`Projects OVER 100%: ${overCount}`);
+    doc.fillColor("#111827");
+    doc.moveDown(0.6);
 
-  doc.moveDown(0.6);
-  hr(doc, left, width);
-  doc.moveDown(0.6);
+    // Charts: status distribution + man-hours by person.
+    barChart(doc, "Projects by Status", statusCounts, left, width / 2 - 10);
+    const hoursByPerson = tallySum(data.team.map((t) => [t.person, t.allocated_hours] as [string, number]))
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 10);
+    const chartY = doc.y;
+    doc.y = chartY; // second chart to the right of the first (approx side-by-side)
+    barChart(doc, "Man-hours by Person (recent)", hoursByPerson, left + width / 2 + 10, width / 2 - 10, chartY - chartHeight(statusCounts.length));
 
-  // ---- Per-project detail ----
-  section(doc, "Per-Project Detail");
-  for (const p of data.projects) {
-    projectBlock(doc, p, data, left, width);
+    doc.moveDown(0.6);
+    hr(doc, left, width);
+    doc.moveDown(0.6);
+
+    // ---- Per-project detail ----
+    section(doc, "Per-Project Detail");
+    for (const p of data.projects) {
+      projectBlock(doc, p, data, left, width);
+    }
+  }
+
+  if (hasInfra) {
+    if (hasPm) {
+      doc.moveDown(0.6);
+      hr(doc, left, width);
+      doc.moveDown(0.6);
+    }
+    const toolSheets =
+      data.infraBillingSheets && data.infraBillingSheets.length > 0
+        ? data.infraBillingSheets
+        : null;
+    section(doc, "Infra Billing");
+    if (toolSheets) {
+      for (const sheet of toolSheets) {
+        ensureSpace(doc, 60);
+        for (const block of sheet.toolBlocks ?? []) {
+          doc.font("Helvetica-Bold").fontSize(11).fillColor("#111827").text(block.tool);
+          doc.font("Helvetica").fontSize(9).fillColor(GRAY);
+          for (const g of block.groups) {
+            if (block.showOwnershipHeaders) {
+              doc.font("Helvetica-Bold").fontSize(9).fillColor("#111827").text(g.stakeholder);
+            }
+            for (const p of g.projects) {
+              const monthsLine = sheet.months
+                .map((m) => `${m}: ${p.months[m] ?? 0}`)
+                .join("  ");
+              doc
+                .font("Helvetica")
+                .fontSize(9)
+                .fillColor("#111827")
+                .text(
+                  `${p.project_name}  Total: ${p.total}${monthsLine ? `  |  ${monthsLine}` : ""}`
+                );
+            }
+            if (block.showOwnershipHeaders) {
+              doc.fillColor(GRAY).text(`${g.stakeholder} Total: ${g.total}`);
+            }
+            doc.moveDown(0.2);
+          }
+          doc.moveDown(0.25);
+        }
+      }
+    } else {
+      doc.font("Helvetica").fontSize(9).fillColor("#111827");
+      const monthKeys = data.infraBillingMonths;
+      for (const r of data.infraBilling) {
+        ensureSpace(doc, 40);
+        doc.font("Helvetica-Bold").fontSize(10).text(r.project_name);
+        doc.font("Helvetica").fontSize(9).fillColor(GRAY);
+        const meta = [
+          r.ownership_label ? `Ownership: ${r.ownership_label}` : null,
+          r.provider_label ? `Provider: ${r.provider_label}` : null,
+          r.currency ? `Currency: ${r.currency}` : null,
+          `Total: ${r.total}`,
+        ]
+          .filter(Boolean)
+          .join(" · ");
+        doc.text(meta);
+        if (monthKeys.length) {
+          const monthsLine = monthKeys.map((m) => `${m}: ${r.months[m] ?? 0}`).join("  ");
+          doc.text(monthsLine);
+        }
+        doc.fillColor("#111827");
+        doc.moveDown(0.35);
+      }
+    }
+  }
+
+  if (!hasPm && !hasInfra) {
+    doc.font("Helvetica").fontSize(10).fillColor(GRAY).text("No report data in the current view.");
   }
 
   doc.end(); // finalize AFTER all content is drawn

@@ -1,7 +1,10 @@
 import { cache } from "react";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { canManageInfra } from "@/lib/infra/permissions";
 import type { Profile } from "@/lib/types";
+
+export { canManageInfra, isAdminRole, isInfraOpsRole } from "@/lib/infra/permissions";
 
 // Fetches the auth user + profile once per request. React cache() dedupes the
 // getUser() + users lookup so multiple guards/pages in one render don't repeat
@@ -20,7 +23,11 @@ const getSessionProfile = cache(
       .eq("user_id", user.id)
       .maybeSingle();
 
-    return { userId: user.id, email: user.email ?? profile?.email ?? "", profile: (profile ?? null) as Profile | null };
+    return {
+      userId: user.id,
+      email: user.email ?? profile?.email ?? "",
+      profile: (profile ?? null) as Profile | null,
+    };
   }
 );
 
@@ -46,3 +53,9 @@ export async function requireAdmin(): Promise<{ userId: string; profile: Profile
   return { userId, profile };
 }
 
+/** Admin or InfraOps — full infra/billing write access. */
+export async function requireInfraManager(): Promise<{ userId: string; profile: Profile }> {
+  const { userId, profile } = await requireActiveUser();
+  if (!canManageInfra(profile)) redirect("/projects");
+  return { userId, profile };
+}

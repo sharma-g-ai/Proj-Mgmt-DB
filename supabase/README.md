@@ -15,6 +15,8 @@ FastAPI service does.
 | `0004_rls.sql` | 03 | `is_admin()` / `is_active_user()` / `leads_project()`, RLS policies on every table, grants, heatmap `fn_person_total_allocation_pct()` |
 | `0005_project_status_detail.sql` | 01 (ext.) | Adds `project.status_detail` free-text note (seed-data decision) |
 
+Later migrations (0006–0028) extend metrics, org projects, approvals, designations, and **InfraSpecs/InfraBilling** (`0026` InfraOps role; `0027` providers/resources/invoices/RLS/storage; `0028` index/grant optimizations).
+
 Then load `seed.sql` (data imported from the source project tracker).
 
 ## Apply to a hosted Supabase project

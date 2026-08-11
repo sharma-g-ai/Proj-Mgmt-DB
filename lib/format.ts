@@ -143,11 +143,27 @@ export function monthsInRange(startISO: string, endISO: string, cap = 120): stri
 
 const MONTH_ABBR = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
-// "2026-07" -> "Jul 2026".
+// "2026-07" -> "Jul 2026"; "unknown" -> "Unspecified".
 export function fmtMonthLabel(month: string): string {
+  if (month === "unknown") return "Unspecified";
   const [y, m] = month.split("-").map(Number);
   if (!y || !m) return month;
   return `${MONTH_ABBR[m - 1]} ${y}`;
+}
+
+/** Currency amount for billing displays. */
+export function fmtMoney(
+  amount: number | string | null | undefined,
+  currency?: string | null
+): string {
+  if (amount === null || amount === undefined || amount === "") return "—";
+  const n = typeof amount === "number" ? amount : Number(amount);
+  if (!Number.isFinite(n)) return "—";
+  const formatted = n.toLocaleString("en-US", {
+    minimumFractionDigits: n % 1 === 0 ? 0 : 2,
+    maximumFractionDigits: 2,
+  });
+  return currency ? `${currency} ${formatted}` : formatted;
 }
 
 export function addDays(iso: string, n: number): string {

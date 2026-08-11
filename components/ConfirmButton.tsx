@@ -8,14 +8,18 @@ export function ConfirmButton({
   children,
   className,
 }: {
-  action: () => Promise<void>;
+  action: () => Promise<unknown>;
   message: string;
   children: React.ReactNode;
   className?: string;
 }) {
+  async function run(_formData: FormData): Promise<void> {
+    await action();
+  }
+
   return (
     <form
-      action={action}
+      action={run}
       onSubmit={(e) => {
         if (!window.confirm(message)) e.preventDefault();
       }}
