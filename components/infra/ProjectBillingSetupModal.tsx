@@ -45,7 +45,7 @@ export function ProjectBillingSetupModal({
   const action = saveProjectBillingSetup.bind(null, projectId);
   const [state, formAction] = useFormState(action, undefined as ActionState);
   // New projects: default On so InfraOps enter account #s for invoice restriction.
-  const [enforce, setEnforce] = useState(initialEnforce || true);
+  const [enforce, setEnforce] = useState<boolean>(initialEnforce || true);
   const [accounts, setAccounts] = useState<{ account_id: string; account_name: string }[]>([
     { account_id: "", account_name: "" },
   ]);
@@ -204,7 +204,7 @@ export function ProjectBillingSummary({
 }) {
   const router = useRouter();
   const [editing, setEditing] = useState(false);
-  const [enforce, setEnforce] = useState(enforceBillingAccounts);
+  const [enforce, setEnforce] = useState<boolean>(enforceBillingAccounts);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const addAction = addProjectBillingAccount.bind(null, projectId);
