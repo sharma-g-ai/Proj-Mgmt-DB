@@ -706,17 +706,17 @@ export function InfraInvoicesSection({
                   </button>
                 )}
               </div>
-              <div className="overflow-x-auto">
+              <div className="invoice-list-scroll max-h-[20rem] overflow-auto overscroll-contain">
                 <table className="min-w-full text-left text-sm">
-                  <thead className="border-b border-gray-100 text-[11px] uppercase tracking-wide text-gray-500">
+                  <thead className="sticky top-0 z-10 border-b border-gray-100 bg-gray-50 text-[11px] uppercase tracking-wide text-gray-500 shadow-sm">
                     <tr>
-                      <th className="px-4 py-2.5 font-medium">Month</th>
+                      <th className="bg-gray-50 px-4 py-2.5 font-medium">Month</th>
                       {splitByAccount ? (
                         <>
                           {accountColumns.map((col) => (
                             <th
                               key={col.key}
-                              className="max-w-[9rem] px-3 py-2.5 font-medium text-right"
+                              className="max-w-[9rem] bg-gray-50 px-3 py-2.5 font-medium text-right"
                               title={col.label}
                             >
                               <span className="line-clamp-2">{col.label}</span>
@@ -725,21 +725,21 @@ export function InfraInvoicesSection({
                               </span>
                             </th>
                           ))}
-                          <th className="px-4 py-2.5 font-medium text-right">
+                          <th className="bg-gray-50 px-4 py-2.5 font-medium text-right">
                             Total ({REPORT_CURRENCY})
                           </th>
                         </>
                       ) : showDualSummary ? (
                         <>
-                          <th className="px-4 py-2.5 font-medium text-right">
+                          <th className="bg-gray-50 px-4 py-2.5 font-medium text-right">
                             Amount ({sharedOrigCurrency})
                           </th>
-                          <th className="px-4 py-2.5 font-medium text-right">
+                          <th className="bg-gray-50 px-4 py-2.5 font-medium text-right">
                             Amount ({REPORT_CURRENCY})
                           </th>
                         </>
                       ) : (
-                        <th className="px-4 py-2.5 font-medium text-right">
+                        <th className="bg-gray-50 px-4 py-2.5 font-medium text-right">
                           Amount ({REPORT_CURRENCY})
                         </th>
                       )}
@@ -794,9 +794,9 @@ export function InfraInvoicesSection({
                       );
                     })}
                   </tbody>
-                  <tfoot>
+                  <tfoot className="sticky bottom-0">
                     <tr className="border-t border-gray-200 bg-gray-50">
-                      <td className="px-4 py-2.5 text-xs font-medium uppercase tracking-wide text-gray-500">
+                      <td className="bg-gray-50 px-4 py-2.5 text-xs font-medium uppercase tracking-wide text-gray-500">
                         Total
                       </td>
                       {splitByAccount ? (
@@ -811,27 +811,27 @@ export function InfraInvoicesSection({
                             return (
                               <td
                                 key={col.key}
-                                className="px-3 py-2.5 text-right font-semibold tabular-nums text-gray-900"
+                                className="bg-gray-50 px-3 py-2.5 text-right font-semibold tabular-nums text-gray-900"
                               >
                                 {fmtMoney(sum, REPORT_CURRENCY)}
                               </td>
                             );
                           })}
-                          <td className="px-4 py-2.5 text-right font-semibold tabular-nums text-gray-900">
+                          <td className="bg-gray-50 px-4 py-2.5 text-right font-semibold tabular-nums text-gray-900">
                             {fmtMoney(grandTotalUsd, REPORT_CURRENCY)}
                           </td>
                         </>
                       ) : showDualSummary && grandTotalOrig != null ? (
                         <>
-                          <td className="px-4 py-2.5 text-right font-semibold tabular-nums text-gray-900">
+                          <td className="bg-gray-50 px-4 py-2.5 text-right font-semibold tabular-nums text-gray-900">
                             {fmtMoney(grandTotalOrig, sharedOrigCurrency)}
                           </td>
-                          <td className="px-4 py-2.5 text-right font-semibold tabular-nums text-gray-700">
+                          <td className="bg-gray-50 px-4 py-2.5 text-right font-semibold tabular-nums text-gray-700">
                             {fmtMoney(grandTotalUsd, REPORT_CURRENCY)}
                           </td>
                         </>
                       ) : (
-                        <td className="px-4 py-2.5 text-right font-semibold tabular-nums text-gray-900">
+                        <td className="bg-gray-50 px-4 py-2.5 text-right font-semibold tabular-nums text-gray-900">
                           {fmtMoney(grandTotalUsd, REPORT_CURRENCY)}
                         </td>
                       )}
@@ -883,7 +883,8 @@ export function InfraInvoicesSection({
                   </button>
                 ) : null}
               </div>
-              <ul className="max-h-[32rem] space-y-3 overflow-y-auto pr-1">
+              <div className="invoice-list-scroll max-h-[20rem] overflow-y-auto overscroll-contain rounded-xl border border-gray-200">
+                <ul className="space-y-3 p-3">
                 {visibleInvoices.map((inv) => {
                   const month =
                     billingMonthKey(inv.billing_period_start, inv.billing_period_end) ?? "unknown";
@@ -1052,6 +1053,7 @@ export function InfraInvoicesSection({
                   );
                 })}
               </ul>
+              </div>
             </div>
           </>
         )}
