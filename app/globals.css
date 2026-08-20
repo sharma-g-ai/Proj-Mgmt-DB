@@ -43,6 +43,21 @@ body {
     animation: extract-shimmer 1.4s ease-in-out infinite;
     transition: width 0.25s ease-out;
   }
+
+  /* Keep a visible scrollbar on invoice / month lists (Windows overlay bars hide). */
+  .invoice-list-scroll {
+    scrollbar-gutter: stable;
+  }
+  .invoice-list-scroll::-webkit-scrollbar {
+    width: 8px;
+  }
+  .invoice-list-scroll::-webkit-scrollbar-track {
+    background: #f1f5f9;
+  }
+  .invoice-list-scroll::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 8px;
+  }
 }
 
 @keyframes extract-shimmer {

@@ -1,5 +1,5 @@
 /**
- * LiteLLM (OpenAI-compatible) client for invoice extraction.
+ * Portkey (OpenAI-compatible) client for invoice extraction.
  * Field lists come from runtime metadata — nothing provider-specific is hardcoded.
  */
 
@@ -38,42 +38,40 @@ function requireEnv(name: string): string {
   return v;
 }
 
-/** LiteLLM uses `/v1/chat/completions`; Google AI Studio OpenAI-compat uses `/chat/completions`. */
+/** Portkey speaks OpenAI format at `{base}/chat/completions`. */
 function chatCompletionsUrl(baseUrl: string): string {
   const base = baseUrl.replace(/\/$/, "");
-  if (base.includes("generativelanguage.googleapis.com")) {
-    return `${base}/chat/completions`;
-  }
+  if (base.endsWith("/chat/completions")) return base;
+  if (base.endsWith("/v1")) return `${base}/chat/completions`;
   return `${base}/v1/chat/completions`;
 }
 
-/** Strip LiteLLM `gemini/` prefix for Google AI Studio model ids. */
-function resolveModelId(model: string, baseUrl: string): string {
-  if (baseUrl.includes("generativelanguage.googleapis.com")) {
-    return model.replace(/^gemini\//i, "");
-  }
-  return model;
+function llmConfig() {
+  const base = (process.env.PORTKEY_BASE_URL || "https://api.portkey.ai/v1").replace(
+    /\/$/,
+    ""
+  );
+  const key = requireEnv("PORTKEY_API_KEY");
+  const configId = requireEnv("PORTKEY_CONFIG_ID");
+  // Config routing overrides this name (often Gemini). Do not branch on it.
+  const model = process.env.PORTKEY_MODEL || "gpt-4o-mini";
+  return { key, configId, model, url: chatCompletionsUrl(base) };
 }
 
-function llmConfig() {
-  const base = requireEnv("LITELLM_BASE_URL");
-  const key = requireEnv("LITELLM_API_KEY");
-  const model = resolveModelId(
-    process.env.LITELLM_MODEL || "gemini/gemini-2.5-flash",
-    base
-  );
-  const visionModel = resolveModelId(
-    process.env.LITELLM_VISION_MODEL || process.env.LITELLM_MODEL || "gemini/gemini-2.5-flash",
-    base
-  );
-  return { base, key, model, visionModel, url: chatCompletionsUrl(base) };
+function portkeyHeaders(cfg: { key: string; configId: string }) {
+  return {
+    "Content-Type": "application/json",
+    "x-portkey-api-key": cfg.key,
+    "x-portkey-config": cfg.configId,
+    "x-portkey-metadata": JSON.stringify({ feature: "invoice-extraction" }),
+  };
 }
 
 export async function extractInvoiceWithLlm(params: {
   textContent: string;
   schema: InvoiceExtractionSchema;
 }): Promise<ExtractedInvoice> {
-  const { key, model, url } = llmConfig();
+  const { model, url, ...auth } = llmConfig();
 
   const system = [
     "You extract structured billing data from invoice text or invoice documents.",
@@ -125,10 +123,7 @@ export async function extractInvoiceWithLlm(params: {
 
   const res = await fetch(url, {
     method: "POST",
-    headers: {
-      Authorization: `Bearer ${key}`,
-      "Content-Type": "application/json",
-    },
+    headers: portkeyHeaders(auth),
     body: JSON.stringify({
       model,
       temperature: 0,
@@ -154,7 +149,7 @@ export async function extractInvoiceWithLlm(params: {
   return validateExtractedInvoice(JSON.parse(content));
 }
 
-/** Multimodal fallback for scanned PDFs / images via LiteLLM vision-capable models. */
+/** Multimodal fallback for scanned PDFs / images via Portkey vision-capable models. */
 export async function extractInvoiceWithLlmFromFile(params: {
   bytes: Uint8Array;
   filename: string;
@@ -162,7 +157,7 @@ export async function extractInvoiceWithLlmFromFile(params: {
   schema: InvoiceExtractionSchema;
   textHint?: string;
 }): Promise<ExtractedInvoice> {
-  const { key, visionModel: model, url } = llmConfig();
+  const { model, url, ...auth } = llmConfig();
 
   const b64 = Buffer.from(params.bytes).toString("base64");
   const mime = params.mimeType || "application/octet-stream";
@@ -216,7 +211,7 @@ export async function extractInvoiceWithLlmFromFile(params: {
     },
   ];
 
-  // Prefer image_url for images; many LiteLLM proxies also accept PDF data URLs the same way.
+  // Prefer image_url for images; Portkey / OpenAI-compat gateways also accept PDF data URLs.
   if (mime.startsWith("image/") || mime.includes("pdf")) {
     content.push({ type: "image_url", image_url: { url: dataUrl } });
   } else {
@@ -228,10 +223,7 @@ export async function extractInvoiceWithLlmFromFile(params: {
 
   const res = await fetch(url, {
     method: "POST",
-    headers: {
-      Authorization: `Bearer ${key}`,
-      "Content-Type": "application/json",
-    },
+    headers: portkeyHeaders(auth),
     body: JSON.stringify({
       model,
       temperature: 0,
